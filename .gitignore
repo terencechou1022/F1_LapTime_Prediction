@@ -1,0 +1,64 @@
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ----- Virtual environments -----
+.venv/
+venv/
+env/
+ENV/
+
+# ----- IDE / editor -----
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ----- Project artifacts -----
+# raw downloads are huge and regenerable; the 6 merged xlsx (~2 MB) are committed
+data/*
+!data/merged/
+
+# Trained models (regenerable from data + scripts/train.py)
+models/
+
+# fastf1 cache
+fastf1_cache/
+
+# Plots / outputs
+plots/
+*.png
+*.pdf
+# ...but keep the committed portfolio diagrams
+!docs/img/
+!docs/img/*.png
+
+# Training / evaluation logs (regenerable)
+logs/
+
+# summary/metrics.csv + best_params.csv are committed (headline results)
+
+# ----- Local secrets / settings -----
+tasks/
+*.env
+.env.local
+
+# ----- Legacy / scratch files -----
+legacy/
+.tmp*
+
+# ----- Notebooks -----
+.ipynb_checkpoints/
+
+# ----- Tool caches -----
+.pytest_cache/
+.ruff_cache/
