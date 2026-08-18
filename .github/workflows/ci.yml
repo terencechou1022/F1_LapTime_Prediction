@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package + dev tools
+        run: pip install -e .[dev]
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Tests (pytest, synthetic fixtures — no race data needed)
+        run: python -m pytest tests/ -q
+
+      # Runs only when the merged race data is present in the repo.
+      - name: Training smoke run (tiny grids, ~15 s)
+        if: ${{ hashFiles('data/merged/2022-2024_Azerbaijan_Grand_Prix.xlsx') != '' }}
+        run: python scripts/train.py --experiment wind --model dt --quick --no-plots
