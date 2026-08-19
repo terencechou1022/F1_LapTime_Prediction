@@ -1,0 +1,2 @@
+# Keep notebooks out of the repo language statistics (they are documentation)
+notebooks/** linguist-documentation

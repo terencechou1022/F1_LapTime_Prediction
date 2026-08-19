@@ -1,11 +1,11 @@
 """Summarize pipeline output logs into structured CSVs.
 
-Reads `logs/*.log` produced by `run.py` (30 files when complete) and writes:
+Reads `logs/*.log` produced by `main.py` (30 files when complete) and writes:
     summary/metrics.csv      — 24 rows: eval results per (study, domain, mode, model)
     summary/best_params.csv  — 6 rows: per (study, model) best_params + holdout metrics
 
 Missing logs produce warnings but do not crash. Idempotent: re-running overwrites
-the output CSVs in place. Designed to be run AFTER `run.py` completes; can also
+the output CSVs in place. Designed to be run AFTER `main.py` completes; can also
 be re-run after partial retraining to refresh whatever metrics are present.
 
 Usage:

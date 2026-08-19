@@ -130,16 +130,67 @@ class UndercutScenario:
         result = partial_dependence(model, x, features=[feature], grid_resolution=grid_resolution)
         self._grid = np.asarray(result["grid_values"][0])
         self._pdp = np.asarray(result["average"][0])
+        self._support = (float(x[feature].min()), float(x[feature].max()))
+        self._training_mean = float(x[feature].mean())
+
+    @classmethod
+    def from_cache(
+        cls,
+        cache: dict,
+        feature: str,
+        *,
+        pit_loss: float,
+        gap: float,
+        ours_new_outlap: float,
+        rival_old_inlap: float,
+        n_remaining: int,
+    ) -> UndercutScenario:
+        """Rebuild a scenario from a `to_cache()` export, without the model.
+
+        The model is touched exactly once, in `__init__`, to compute the PDP
+        grid; `evaluate()` afterwards reads only that grid, the support and the
+        training mean. A deployment that needs nothing but the correction can
+        therefore ship a few hundred floats instead of the fitted forest and its
+        training data — see `scripts/export_pdp_cache.py`.
+        """
+        obj = cls.__new__(cls)
+        obj.model = None
+        obj.x = None
+        obj.feature = feature
+        obj.pit_loss = pit_loss
+        obj.gap = gap
+        obj.ours_new_outlap = ours_new_outlap
+        obj.rival_old_inlap = rival_old_inlap
+        obj.n_remaining = n_remaining
+        obj._grid = np.asarray(cache["grid"], dtype=float)
+        obj._pdp = np.asarray(cache["pdp"], dtype=float)
+        obj._support = (float(cache["support"][0]), float(cache["support"][1]))
+        obj._training_mean = float(cache["training_mean"])
+        return obj
+
+    def to_cache(self) -> dict:
+        """The model-derived values `evaluate()` reads, as plain JSON-able types.
+
+        Inverse of `from_cache()`; the fixed strategy parameters are deliberately
+        left out so the consumer supplies its own.
+        """
+        lo, hi = self.support
+        return {
+            "grid": self._grid.tolist(),
+            "pdp": self._pdp.tolist(),
+            "support": [lo, hi],
+            "training_mean": self.training_mean,
+        }
 
     @property
     def support(self) -> tuple[float, float]:
         """Training support = observed [min, max] of the feature (the range the
         RF actually saw and split on)."""
-        return float(self.x[self.feature].min()), float(self.x[self.feature].max())
+        return self._support
 
     @property
     def training_mean(self) -> float:
-        return float(self.x[self.feature].mean())
+        return self._training_mean
 
     def _pdp_at(self, value: float) -> float:
         """PDP value at an arbitrary point via linear interpolation on the grid."""

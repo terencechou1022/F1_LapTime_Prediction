@@ -1,4 +1,4 @@
-# F1 Lap-Time Delta Analysis
+# Applying Machine Learning Techniques to F1 Telemetry Data Analysis
 
 [![CI](https://github.com/terencechou1022/F1_LapTime_Prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/terencechou1022/F1_LapTime_Prediction/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
@@ -57,7 +57,7 @@ python scripts/evaluate.py --experiment temp-cross-domain   # the −6.08 headli
 python scripts/mechanism.py                                 # 8 PDP/ICE figures + both undercut scenarios
 ```
 
-Full-from-scratch reproduction (download → merge → 6 grid-search trainings → 24 evaluations → summary → mechanism) is one command — `python run.py` (`--dry-run` previews the 32 steps) — and costs **~75–80 h** on an 8-core CPU; step-by-step commands are below.
+Full-from-scratch reproduction (download → merge → 6 grid-search trainings → 24 evaluations → summary → mechanism) is one command — `python main.py` (`--dry-run` previews the 32 steps) — and costs **~75–80 h** on an 8-core CPU; step-by-step commands are below.
 
 ## Pipeline
 
@@ -127,7 +127,7 @@ class FooPreprocessor(BaseLapPreprocessor):
 ```
 .
 ├── f1lab/                 # OOP package — preprocessing, modeling, visualization, strategy, data I/O
-├── scripts/               # CLI entry points (download / merge / train / evaluate / summarize / mechanism / diagrams)
+├── scripts/               # CLI entry points (download / merge / train / evaluate / summarize / mechanism / export_pdp_cache / diagrams)
 ├── tests/                 # pytest suite — synthetic fixtures, no race data or network needed
 ├── docs/
 │   ├── methodology.md     # standalone research summary (design, results, limitations)
@@ -137,7 +137,7 @@ class FooPreprocessor(BaseLapPreprocessor):
 ├── summary/               # metrics.csv + best_params.csv — the headline numbers, committed
 ├── models/                # gitignored — six .joblib via GitHub Release (or retrain ~75–80 h)
 ├── plots/  logs/          # gitignored — regenerated outputs
-├── run.py                 # one-command full reproduction (cross-platform)
+├── main.py                 # one-command full reproduction (cross-platform)
 ├── pyproject.toml         # packaging (pip install -e .)
 └── requirements.txt       # exact pinned dependency lock
 ```
