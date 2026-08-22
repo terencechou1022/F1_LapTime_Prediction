@@ -1,4 +1,4 @@
-# F1 Lap-Time Delta Analysis
+# Applying Machine Learning Techniques to F1 Telemetry Data Analysis
 
 [![CI](https://github.com/terencechou1022/F1_LapTime_Prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/terencechou1022/F1_LapTime_Prediction/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
