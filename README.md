@@ -58,7 +58,7 @@ python scripts/evaluate.py --experiment temp-cross-domain   # the −6.08 headli
 python scripts/mechanism.py                                 # 8 PDP/ICE figures + both undercut scenarios
 ```
 
-Full-from-scratch reproduction (download → merge → 6 grid-search trainings → 24 evaluations → summary → mechanism) is one command — `python run.py` (`--dry-run` previews the 32 steps) — and costs **~75–80 h** on an 8-core CPU; step-by-step commands are below.
+Full-from-scratch reproduction (download → merge → 6 grid-search trainings → 24 evaluations → summary → mechanism) is one command — `python main.py` (`--dry-run` previews the 32 steps) — and costs **~75–80 h** on an 8-core CPU; step-by-step commands are below.
 
 ## Pipeline
 
@@ -128,10 +128,10 @@ class FooPreprocessor(BaseLapPreprocessor):
 ```
 .
 ├── f1lab/                 # OOP package — preprocessing, modeling, visualization, strategy, data I/O
-├── scripts/               # CLI entry points (download / merge / train / evaluate / summarize / mechanism / diagrams)
+├── scripts/               # CLI entry points (download / merge / train / evaluate / summarize / mechanism / export_pdp_cache / diagrams)
 ├── tests/                 # pytest suite — synthetic fixtures, no race data or network needed
 ├── notebooks/             # 01_eda.ipynb + 02_walkthrough.ipynb — executed, outputs included
-├── demo/                  # Streamlit undercut demo with the OOD-refusal UX
+├── demo/                  # pdp_cache.json (exported PDP curves) + demo notes; the app is ./app.py
 ├── docs/
 │   ├── methodology.md     # standalone research summary (design, results, limitations)
 │   ├── retrospective.md   # engineering retrospective — the lessons behind the design
@@ -140,7 +140,8 @@ class FooPreprocessor(BaseLapPreprocessor):
 ├── summary/               # metrics.csv + best_params.csv — the headline numbers, committed
 ├── models/                # gitignored — six .joblib via GitHub Release (or retrain ~75–80 h)
 ├── plots/  logs/          # gitignored — regenerated outputs
-├── run.py                 # one-command full reproduction (cross-platform)
+├── app.py                 # Streamlit undercut demo (OOD-refusal UX; reads demo/pdp_cache.json)
+├── main.py                 # one-command full reproduction (cross-platform)
 ├── pyproject.toml         # packaging (pip install -e .) + ruff config
 └── requirements.txt       # exact pinned dependency lock
 ```
@@ -149,7 +150,7 @@ class FooPreprocessor(BaseLapPreprocessor):
 
 - **[EDA notebook](notebooks/01_eda.ipynb)** — what the data says before any model: where 12–26% of laps go, sector times proven to be leakage (r = 1.000), the target's heavy tail that caps achievable R², and the temperature gap that makes the Las Vegas failure predictable. Needs no models and no network — runs in ~20 s on a fresh clone.
 - **[Walkthrough notebook](notebooks/02_walkthrough.ipynb)** — the modelling story, executed with outputs (rendered directly on GitHub): load → evaluate the four 2025 conditions → PDP/ICE → both undercut scenarios, ending in the CLOSE→OPEN flip and the OOD refusal. Re-runs in ~3 min with the pretrained models.
-- **[Interactive demo](demo/)** — Streamlit app: drag the condition slider past the training support and watch the correction get withheld in real time. `pip install -e .[demo]`, then `streamlit run demo/app.py`.
+- **[Interactive demo](demo/)** — Streamlit app: drag the condition slider past the training support and watch the correction get withheld in real time. `pip install -e .[demo]`, then `streamlit run app.py`. Needs no trained models — it reads the exported PDP curves in `demo/pdp_cache.json`, so it runs on a fresh clone and deploys to Streamlit Community Cloud as-is.
 - **[Methodology](docs/methodology.md)** — data, symmetric design, split discipline, model selection, full result tables, mechanism extraction, the undercut scenarios, and an honest limitations list.
 - **[Engineering retrospective](docs/retrospective.md)** — why the design ended up this way: attribution-first experiment structure, the OOD-refusal position, leakage decisions, grid design philosophy, and what writing the tests revealed.
 

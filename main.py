@@ -7,8 +7,8 @@ Steps are generated from the study/model/condition lists below, so the log
 filename and the flags of a step always come from the same parameters.
 
 Usage:
-    python run.py              # full run (uses the interpreter it is launched with)
-    python run.py --dry-run    # print the command sequence without running it
+    python main.py              # full run (uses the interpreter it is launched with)
+    python main.py --dry-run    # print the command sequence without running it
 """
 from __future__ import annotations
 

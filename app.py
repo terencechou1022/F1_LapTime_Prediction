@@ -1,19 +1,24 @@
 """Streamlit demo: PDP-derived undercut correction with the OOD-refusal UX.
 
-Loads the two study RF models, builds the symmetric `UndercutScenario` pair
-(identical fixed params), and lets the user sweep the current condition beyond
+Rebuilds the symmetric `UndercutScenario` pair from the exported PDP cache
+(identical fixed params) and lets the user sweep the current condition beyond
 the training support to see the correction applied (in-support) or withheld
 (OOD) — refusal instead of silent extrapolation.
 
+The cache holds the two PDP curves plus each study's training support and
+baseline — the only model-derived values `evaluate()` ever reads — so this app
+loads no .joblib and no race data. Regenerate it with
+`python scripts/export_pdp_cache.py` after retraining.
+
 Usage:
-    streamlit run demo/app.py
+    streamlit run app.py
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
-import joblib
 import matplotlib
 
 matplotlib.use("Agg")  # headless backend — Streamlit renders figures itself
@@ -22,10 +27,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from f1lab import TempPreprocessor, UndercutScenario, WindPreprocessor  # noqa: E402
+from f1lab import UndercutScenario  # noqa: E402
+
+CACHE_PATH = PROJECT_ROOT / "demo" / "pdp_cache.json"
 
 # Shared undercut parameters — IDENTICAL across both studies (the symmetry).
 SCENARIO = dict(pit_loss=20.0, gap=19.50, ours_new_outlap=95.2, rival_old_inlap=95.5, n_remaining=10)
@@ -34,49 +41,38 @@ STUDIES = {
     "Wind — HeadWind [m/s]": {
         "feature": "HeadWind",
         "unit": "m/s",
-        "model": "models/azerbaijan_rf.joblib",
-        "data": "data/merged/2022-2024_Azerbaijan_Grand_Prix.xlsx",
-        "preprocessor": WindPreprocessor,
         "slider": dict(min_value=-5.0, max_value=6.0, step=0.05, value=1.38),
     },
     "Temperature — TrackTemp [°C]": {
         "feature": "TrackTemp",
         "unit": "°C",
-        "model": "models/singapore_rf.joblib",
-        "data": "data/merged/2022-2024_Singapore_Grand_Prix.xlsx",
-        "preprocessor": TempPreprocessor,
         "slider": dict(min_value=10.0, max_value=45.0, step=0.1, value=17.3),
     },
 }
 
 
-@st.cache_resource(show_spinner="Loading models + precomputing PDP grids (first run only)...")
-def build_scenarios() -> dict[str, UndercutScenario]:
-    missing = [s["model"] for s in STUDIES.values() if not (PROJECT_ROOT / s["model"]).exists()]
-    if missing:
+@st.cache_resource(show_spinner="Loading the exported PDP curves...")
+def load_cache() -> dict:
+    if not CACHE_PATH.exists():
         st.error(
-            f"Missing model files: {', '.join(missing)}. Download the trained models from the "
-            "GitHub Release assets and place them in `models/`, or retrain via `python run.py`."
+            f"Missing `demo/{CACHE_PATH.name}`. Regenerate it with "
+            "`python scripts/export_pdp_cache.py` (needs the trained models in `models/`)."
         )
         st.stop()
-    scenarios: dict[str, UndercutScenario] = {}
-    for label, s in STUDIES.items():
-        model = joblib.load(PROJECT_ROOT / s["model"])
-        _, x, _ = s["preprocessor"].from_excel(str(PROJECT_ROOT / s["data"])).run()
-        scenarios[label] = UndercutScenario(model, x, s["feature"], **SCENARIO)
-    return scenarios
+    return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
 
 
 st.set_page_config(page_title="F1 Undercut Correction — OOD-aware", layout="wide")
 st.title("F1 Undercut Correction — OOD-aware")
 
-scenarios = build_scenarios()
+cache = load_cache()
 
 # ---- sidebar: study + current condition ----
 study_label = st.sidebar.radio("Study", list(STUDIES))
 study = STUDIES[study_label]
-scenario = scenarios[study_label]
 feature, unit = study["feature"], study["unit"]
+curve = cache[feature]
+scenario = UndercutScenario.from_cache(curve, feature, **SCENARIO)
 lo, hi = scenario.support
 
 current = st.sidebar.slider(f"Current {feature} [{unit}]", **study["slider"])
@@ -125,8 +121,7 @@ elif not res.applicable:
 # ---- (5) PDP curve with support band ----
 st.subheader(f"PDP — {feature} → LapTimeDelta")
 fig, ax = plt.subplots(figsize=(9, 4))
-# _grid/_pdp: the scenario's precomputed PDP grid (recomputing it here would double the slow RF PDP)
-ax.plot(scenario._grid, scenario._pdp, color="tab:blue", lw=2, label="PDP f(feature)")
+ax.plot(curve["grid"], curve["pdp"], color="tab:blue", lw=2, label="PDP f(feature)")
 ax.axvspan(lo, hi, color="tab:green", alpha=0.12, label=f"training support [{lo:.2f}, {hi:.2f}]")
 ax.axvline(scenario.training_mean, color="gray", ls=":", lw=1.5,
            label=f"training mean {scenario.training_mean:.2f}")

@@ -1,6 +1,9 @@
 """Tests for UndercutScenario: in-support correction vs OOD withholding."""
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -67,3 +70,26 @@ def test_out_of_support_correction_withheld(scenario):
     assert res.gap == pytest.approx(19.50)
     assert res.margin_uncorrected == pytest.approx(-0.20)
     assert res.decision_uncorrected == "CLOSE"
+
+
+def test_from_cache_reproduces_the_model_path(scenario):
+    """A JSON round-trip through to_cache/from_cache must change nothing.
+
+    That equivalence is what lets the deployed demo ship the PDP curve instead
+    of the fitted forest.
+    """
+    rebuilt = UndercutScenario.from_cache(
+        json.loads(json.dumps(scenario.to_cache())),
+        scenario.feature,
+        pit_loss=scenario.pit_loss,
+        gap=scenario.gap,
+        ours_new_outlap=scenario.ours_new_outlap,
+        rival_old_inlap=scenario.rival_old_inlap,
+        n_remaining=scenario.n_remaining,
+    )
+
+    assert rebuilt.support == scenario.support
+    assert rebuilt.training_mean == scenario.training_mean
+    # Spans below-support, both edges, in-support, and above-support.
+    for value in (-5.0, 0.0, 5.0, 8.0, 10.0, 12.0):
+        assert asdict(rebuilt.evaluate(value)) == asdict(scenario.evaluate(value))
