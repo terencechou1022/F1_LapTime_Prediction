@@ -1,4 +1,4 @@
-"""CLI: export the two study PDP curves so the demo needs no model files.
+"""CLI: export the four demo PDP curves so the demo needs no model files.
 
 `UndercutScenario` touches its model exactly once, in `__init__`, to build the
 PDP grid; `evaluate()` afterwards reads only that grid, the training support and
@@ -25,14 +25,25 @@ from f1lab import TempPreprocessor, UndercutScenario, WindPreprocessor
 
 OUT_PATH = _bootstrap.PROJECT_ROOT / "demo" / "pdp_cache.json"
 
-# The two features the demo exposes — same models and training data as scripts/mechanism.py.
+# The four features the demo exposes (two per causal axis) — same models and
+# training data as scripts/mechanism.py.
 _STUDIES = {
     "HeadWind": {
         "preprocessor": WindPreprocessor,
         "model": "models/azerbaijan_rf.joblib",
         "data": "data/merged/2022-2024_Azerbaijan_Grand_Prix.xlsx",
     },
+    "CrossWind": {
+        "preprocessor": WindPreprocessor,
+        "model": "models/azerbaijan_rf.joblib",
+        "data": "data/merged/2022-2024_Azerbaijan_Grand_Prix.xlsx",
+    },
     "TrackTemp": {
+        "preprocessor": TempPreprocessor,
+        "model": "models/singapore_rf.joblib",
+        "data": "data/merged/2022-2024_Singapore_Grand_Prix.xlsx",
+    },
+    "AirTemp": {
         "preprocessor": TempPreprocessor,
         "model": "models/singapore_rf.joblib",
         "data": "data/merged/2022-2024_Singapore_Grand_Prix.xlsx",
