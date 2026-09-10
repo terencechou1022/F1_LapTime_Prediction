@@ -25,7 +25,7 @@ AirTemp carries an in-app caveat: its steep PDP drop at 27.3–27.5 °C sits in 
 region and the thesis (§5.5) flags it as possibly a statistical artifact — corrections read off
 that curve are directional only. HeadWind's step above ≈ +1 m/s gets the same qualifier.
 
-Run: `pip install -e .[demo]` (or `pip install streamlit`), then `streamlit run app.py` from the
+Run: `pip install -e .[demo]` (or `pip install streamlit`), then `streamlit run streamlit_app.py` from the
 project root.
 
 ## Why no model files

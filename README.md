@@ -3,11 +3,10 @@
 [![CI](https://github.com/terencechou1022/F1_LapTime_Prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/terencechou1022/F1_LapTime_Prediction/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![Lint](https://img.shields.io/badge/lint-ruff-261230)
-[![Live demo](https://img.shields.io/badge/live%20demo-streamlit-FF4B4B)](https://f1-laptime-prediction.streamlit.app/)
 
 Two symmetric machine-learning studies quantify how **wind** and **temperature** shift Formula 1 lap times in the 2022–2025 ground-effect era — feeding a pit-stop strategy layer that **refuses to predict outside its training support**.
 
-**Try the refusal yourself → [f1-laptime-prediction.streamlit.app](https://f1-laptime-prediction.streamlit.app/)** — drag the condition slider past the training support and watch the correction get withheld.
+**See the refusal yourself** — `pip install -e .[demo]`, then `streamlit run streamlit_app.py`: drag the condition slider past the training support and watch the correction get withheld. Needs no trained models (it reads the exported PDP curves), so a fresh clone works as-is.
 
 ![Same framework, two verdicts](docs/img/ood_contrast.png)
 
@@ -133,8 +132,8 @@ class FooPreprocessor(BaseLapPreprocessor):
 ├── f1lab/                 # OOP package — preprocessing, modeling, visualization, strategy, data I/O
 ├── scripts/               # CLI entry points (download / merge / train / evaluate / summarize / mechanism / export_pdp_cache / diagrams)
 ├── tests/                 # pytest suite — synthetic fixtures, no race data or network needed
-├── notebooks/             # 01_eda.ipynb + 02_walkthrough.ipynb — executed, outputs included
-├── demo/                  # pdp_cache.json (exported PDP curves) + demo notes; the app is ./app.py
+├── notebooks/             # eda.ipynb + walkthrough.ipynb — executed, outputs included
+├── demo/                  # pdp_cache.json (exported PDP curves) + demo notes; the app is ./streamlit_app.py
 ├── docs/
 │   ├── methodology.md     # standalone research summary (design, results, limitations)
 │   ├── retrospective.md   # engineering retrospective — the lessons behind the design
@@ -143,7 +142,7 @@ class FooPreprocessor(BaseLapPreprocessor):
 ├── summary/               # metrics.csv + best_params.csv — the headline numbers, committed
 ├── models/                # gitignored — six .joblib via GitHub Release (or retrain ~75–80 h)
 ├── plots/  logs/          # gitignored — regenerated outputs
-├── app.py                 # Streamlit undercut demo (OOD-refusal UX; reads demo/pdp_cache.json)
+├── streamlit_app.py       # Streamlit undercut demo (OOD-refusal UX; reads demo/pdp_cache.json)
 ├── main.py                 # one-command full reproduction (cross-platform)
 ├── pyproject.toml         # packaging (pip install -e .) + ruff config
 └── requirements.txt       # exact pinned dependency lock
@@ -151,9 +150,9 @@ class FooPreprocessor(BaseLapPreprocessor):
 
 ## Docs & demos
 
-- **[EDA notebook](notebooks/01_eda.ipynb)** — what the data says before any model: where 12–26% of laps go, sector times proven to be leakage (r = 1.000), the target's heavy tail that caps achievable R², and the temperature gap that makes the Las Vegas failure predictable. Needs no models and no network — runs in ~20 s on a fresh clone.
-- **[Walkthrough notebook](notebooks/02_walkthrough.ipynb)** — the modelling story, executed with outputs (rendered directly on GitHub): load → evaluate the four 2025 conditions → PDP/ICE → both undercut scenarios, ending in the CLOSE→OPEN flip and the OOD refusal. Re-runs in ~3 min with the pretrained models.
-- **[Interactive demo](https://f1-laptime-prediction.streamlit.app/)** — live on Streamlit Community Cloud: drag the condition slider past the training support and watch the correction get withheld in real time. Runs locally too (`pip install -e .[demo]`, then `streamlit run app.py`) and needs no trained models either way — it reads the exported PDP curves in [`demo/pdp_cache.json`](demo/pdp_cache.json), so a fresh clone works as-is.
+- **[EDA notebook](notebooks/eda.ipynb)** — what the data says before any model: where 12–26% of laps go, sector times proven to be leakage (r = 1.000), the target's heavy tail that caps achievable R², and the temperature gap that makes the Las Vegas failure predictable. Needs no models and no network — runs in ~20 s on a fresh clone.
+- **[Walkthrough notebook](notebooks/walkthrough.ipynb)** — the modelling story, executed with outputs (rendered directly on GitHub): load → evaluate the four 2025 conditions → PDP/ICE → both undercut scenarios, ending in the CLOSE→OPEN flip and the OOD refusal. Re-runs in ~3 min with the pretrained models.
+- **[Interactive demo](streamlit_app.py)** — `pip install -e .[demo]`, then `streamlit run streamlit_app.py`: drag the condition slider past the training support and watch the correction get withheld in real time. Needs no trained models — it reads the exported PDP curves in [`demo/pdp_cache.json`](demo/pdp_cache.json), so a fresh clone works as-is.
 - **[Methodology](docs/methodology.md)** — data, symmetric design, split discipline, model selection, full result tables, mechanism extraction, the undercut scenarios, and an honest limitations list.
 - **[Engineering retrospective](docs/retrospective.md)** — why the design ended up this way: attribution-first experiment structure, the OOD-refusal position, leakage decisions, grid design philosophy, and what writing the tests revealed.
 

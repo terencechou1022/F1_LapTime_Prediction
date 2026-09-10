@@ -19,7 +19,7 @@ loads no .joblib and no race data. Regenerate it with
 `python scripts/export_pdp_cache.py` after retraining.
 
 Usage:
-    streamlit run app.py
+    streamlit run streamlit_app.py
 """
 from __future__ import annotations
 
