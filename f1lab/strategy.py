@@ -151,7 +151,7 @@ class UndercutScenario:
         grid; `evaluate()` afterwards reads only that grid, the support and the
         training mean. A deployment that needs nothing but the correction can
         therefore ship a few hundred floats instead of the fitted forest and its
-        training data — see `scripts/export_pdp_cache.py`.
+        training data.
         """
         obj = cls.__new__(cls)
         obj.model = None

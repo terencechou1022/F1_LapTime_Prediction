@@ -127,7 +127,7 @@ class FooPreprocessor(BaseLapPreprocessor):
 ```
 .
 ├── f1lab/                 # OOP package — preprocessing, modeling, visualization, strategy, data I/O
-├── scripts/               # CLI entry points (download / merge / train / evaluate / summarize / mechanism / export_pdp_cache / diagrams)
+├── scripts/               # CLI entry points (download / merge / train / evaluate / summarize / mechanism / diagrams)
 ├── tests/                 # pytest suite — synthetic fixtures, no race data or network needed
 ├── docs/
 │   ├── methodology.md     # standalone research summary (design, results, limitations)
@@ -142,7 +142,7 @@ class FooPreprocessor(BaseLapPreprocessor):
 └── requirements.txt       # exact pinned dependency lock
 ```
 
-## Docs & demos
+## Docs
 
 - **[Methodology](docs/methodology.md)** — data, symmetric design, split discipline, model selection, full result tables, mechanism extraction, the undercut scenarios, and an honest limitations list.
 - **[Engineering retrospective](docs/retrospective.md)** — why the design ended up this way: attribution-first experiment structure, the OOD-refusal position, leakage decisions, grid design philosophy, and what writing the tests revealed.

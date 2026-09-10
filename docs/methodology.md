@@ -77,6 +77,8 @@ A new study plugs in by declaring an `experiment_name` and its `feature_columns`
 
 The era boundary matters: 2022–2025 is one regulatory regime, so 2025 measures *within-era generalization* — the practically relevant question ("does last season's model work next season?") — rather than conflating model error with a rules change.
 
+**Year-on-year drift is reported as a finding, never patched by retraining.** The 2025 test residuals show a consistent median offset (~−0.17 s for the wind study, ~−0.37 s for temp): the models, trained on 2022–2024, systematically overestimate 2025 lap-time deltas, because within-stint spread narrowed between the training seasons and 2025 (median delta 0.86 s → 0.71 s at Azerbaijan, 0.82 s → 0.74 s at Singapore). Why it narrowed is not settled by this data — tyre construction, race interruptions and session-specific dynamics are all candidates — so the offset is measured rather than explained away. This is handled by an optional *post-hoc median-residual bias correction* (`ModelEvaluator.evaluate(..., bias_correct=True)`) that subtracts the median residual and reports both raw and corrected metrics. The 2025 data never enters training. The fitted RF offsets are: wind in-domain −0.17 s, wind cross-domain −0.18 s, temp in-domain −0.37 s, temp cross-domain −1.32 s — the last of these is itself diagnostic (see §6).
+
 ## 5. Models & selection
 
 Three regression models are trained per study — Decision Tree, Random Forest, XGBoost — each via an independent `GridSearchCV` (`TimeSeriesSplit(5)`, R² scoring), sharing `random_state=42` throughout:
