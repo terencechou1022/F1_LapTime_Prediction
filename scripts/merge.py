@@ -1,4 +1,4 @@
-"""CLI: merge per-year raw laps + weather into a single tidy file."""
+"""CLI：把各年度的原始圈速與天氣合併成單一一份整齊的檔案。"""
 from __future__ import annotations
 
 import argparse

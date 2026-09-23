@@ -1,4 +1,4 @@
-"""Tests for the Metrics dataclass against hand-computed values."""
+"""以手算結果驗證 Metrics dataclass 的測試。"""
 from __future__ import annotations
 
 import numpy as np
@@ -10,8 +10,8 @@ from f1lab.modeling import Metrics
 def test_compute_matches_manual_values():
     y_true = np.array([1.0, 2.0, 3.0, 4.0])
     y_pred = np.array([1.5, 2.5, 2.5, 4.5])
-    # errors = [0.5, 0.5, -0.5, 0.5] → MAE 0.5, MSE 0.25, RMSE 0.5
-    # SST = 5.0 (mean 2.5) → R² = 1 − 1.0/5.0 = 0.8
+    # 誤差 = [0.5, 0.5, -0.5, 0.5] → MAE 0.5、MSE 0.25、RMSE 0.5
+    # SST = 5.0（平均 2.5）→ R² = 1 − 1.0/5.0 = 0.8
     m = Metrics.compute(y_true, y_pred)
 
     assert m.mae == pytest.approx(0.5)

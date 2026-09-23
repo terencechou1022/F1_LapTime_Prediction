@@ -1,7 +1,7 @@
-"""Shared fixtures for the f1lab test suite.
+"""f1lab 測試套件的共用 fixture。
 
-Adds the project root to sys.path (mirrors scripts/_bootstrap.py) so `f1lab`
-resolves regardless of how pytest is invoked.
+把專案根目錄加進 sys.path（與 scripts/_bootstrap.py 一致），
+讓 `f1lab` 不論 pytest 以哪種方式啟動都找得到。
 """
 from __future__ import annotations
 
@@ -19,10 +19,10 @@ LAPS_PER_STINT = 15
 
 
 def _driver_laps(driver: str, compounds: tuple[str, str]) -> list[dict]:
-    """Build two stints of LAPS_PER_STINT laps for one driver.
+    """為單一車手造出兩個各 LAPS_PER_STINT 圈的 stint。
 
-    Lap times rise 0.4 s per in-stint lap from a 90.0 s base. Lap 15 is the
-    pit-in lap (PitInTime set), lap 16 the pit-out lap (PitOutTime set).
+    圈速從 90.0 秒起跳，每在 stint 內多跑一圈就加 0.4 秒。第 15 圈是進站圈
+    （有設 PitInTime），第 16 圈是出站圈（有設 PitOutTime）。
     """
     rows = []
     for stint, compound in enumerate(compounds, start=1):
@@ -54,12 +54,12 @@ def _driver_laps(driver: str, compounds: tuple[str, str]) -> list[dict]:
 
 @pytest.fixture
 def laps_df() -> pd.DataFrame:
-    """Synthetic race: 2 drivers x 2 stints x 15 laps = 60 rows.
+    """合成的一場比賽：2 位車手 × 2 個 stint × 15 圈 = 60 列。
 
-    Invalid laps: both drivers pit on lap 15 (in) / 16 (out); VER lap 5 runs
-    under TrackStatus '4' (safety car). Expected survivors after the filter
-    (invalid laps + the lap immediately following each): VER stint 1 drops
-    laps 5, 6, 15; stint 2 drops 16, 17; HAM stint 1 drops lap 15 only.
+    無效圈：兩位車手都在第 15 圈進站、第 16 圈出站；VER 的第 5 圈跑在
+    TrackStatus '4'（安全車）之下。過濾（無效圈本身 + 緊接其後那一圈）之後
+    預期存活的情況：VER 的 stint 1 丟掉第 5、6、15 圈；stint 2 丟掉第 16、17 圈；
+    HAM 的 stint 1 只丟掉第 15 圈。
     """
     rows = _driver_laps("VER", ("SOFT", "HARD")) + _driver_laps("HAM", ("MEDIUM", "HARD"))
     df = pd.DataFrame(rows)

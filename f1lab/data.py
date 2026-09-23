@@ -1,7 +1,7 @@
-"""Data acquisition and merging.
+"""資料取得與合併。
 
-`FastF1Downloader` wraps the fastf1 API and writes raw Excel files.
-`RaceDataMerger` joins per-year laps + weather into one tidy file.
+`FastF1Downloader` 包住 fastf1 API，把原始資料寫成 Excel 檔。
+`RaceDataMerger` 把各年度的圈速與天氣接成一份整齊的檔案。
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import pandas as pd
 
 @dataclass
 class FastF1Downloader:
-    """Download laps + weather + telemetry for a year range via fastf1."""
+    """透過 fastf1 下載指定年份區間的圈速、天氣與遙測資料。"""
 
     output_root: Path
     api_sleep: float = 3.0
@@ -26,7 +26,7 @@ class FastF1Downloader:
         self.output_root = Path(self.output_root)
 
     def download_range(self, start_year: int, end_year: int) -> list[str]:
-        """Download every race in [start_year, end_year]. Returns failures."""
+        """下載 [start_year, end_year] 之間的每一場比賽，回傳失敗清單。"""
         for year in range(start_year, end_year + 1):
             print(f"\n=== Season {year} ===")
             try:
@@ -90,7 +90,7 @@ class FastF1Downloader:
 
 
 class RaceDataMerger:
-    """Merge per-year raw laps + weather files into a single tidy Excel."""
+    """把各年度的原始圈速與天氣檔合併成單一一份整齊的 Excel。"""
 
     TIME_COLUMNS: tuple[str, ...] = (
         "Time", "LapTime", "PitOutTime", "PitInTime",
@@ -103,7 +103,7 @@ class RaceDataMerger:
         self.merged_root = Path(merged_root)
 
     def merge_laps_weather(self, gp_name: str, years: list[int], output_name: str | None = None) -> Path:
-        """Merge laps + weather for a single GP across multiple years."""
+        """把單一 GP 跨多個年度的圈速與天氣合併起來。"""
         self.merged_root.mkdir(parents=True, exist_ok=True)
 
         laps = self._concat_yearly(years, "laps", gp_name, "laps")
@@ -138,7 +138,7 @@ class RaceDataMerger:
         telemetry.to_excel(output_path, index=False)
         return output_path
 
-    # ---- helpers ----------------------------------------------------------
+    # ---- 輔助方法 ----------------------------------------------------------
 
     def _concat_yearly(self, years: list[int], subdir: str, gp_name: str, suffix: str) -> pd.DataFrame:
         frames = []

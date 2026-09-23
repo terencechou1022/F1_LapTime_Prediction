@@ -1,4 +1,4 @@
-"""Generate English portfolio diagrams: system architecture + research flow (matplotlib)."""
+"""產生作品集用的示意圖：系統架構圖與研究流程圖（matplotlib，圖內文字為英文）。"""
 import matplotlib
 
 matplotlib.use("Agg")
@@ -36,14 +36,14 @@ def arrow(ax, x1, y1, x2, y2, ec="#404040", lw=1.6, style="-|>"):
     ax.add_patch(a)
 
 
-# ================= System architecture =================
+# ================= 系統架構圖 =================
 fig, ax = plt.subplots(figsize=(11, 7.3), dpi=150)
 ax.set_xlim(0, 22)
 ax.set_ylim(0, 14.6)
 ax.axis("off")
 ax.set_title("f1lab system architecture", fontsize=14, weight="bold", pad=12)
 
-# CLI layer on top, Facade below it, then the f1lab package modules
+# 最上層是 CLI，往下是 Facade，再往下是 f1lab 套件的各模組
 box(ax, 11, 13, 20, 1.6, ["scripts/ (CLI entry points)",
                           "download.py · merge.py · train.py · evaluate.py · summarize.py · mechanism.py"],
     DAT_FC, DAT_EC)
@@ -78,7 +78,7 @@ arrow(ax, 15, Y2 - 1.1, 15.5, Y3 + 1.1)  # modeling -> strategy
 fig.savefig(OUT_DIR / "system_architecture.png", bbox_inches="tight", facecolor="white")
 plt.close(fig)
 
-# ================= Research flow =================
+# ================= 研究流程圖 =================
 fig, ax = plt.subplots(figsize=(10, 9.9), dpi=150)
 ax.set_xlim(0, 20)
 ax.set_ylim(0, 19.8)

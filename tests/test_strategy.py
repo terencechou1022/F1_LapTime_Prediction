@@ -1,4 +1,4 @@
-"""Tests for UndercutScenario: in-support correction vs OOD withholding."""
+"""UndercutScenario 的測試：在支撐區間內套用修正，OOD 時收回。"""
 from __future__ import annotations
 
 import json
@@ -14,7 +14,7 @@ from f1lab.strategy import UndercutScenario
 
 @pytest.fixture(scope="module")
 def scenario() -> UndercutScenario:
-    # Feature F has support [0, 10]; y depends on F so the PDP is non-flat.
+    # 特徵 F 的支撐區間是 [0, 10]；y 依賴 F，所以 PDP 不會是平的。
     x = pd.DataFrame({
         "F": np.linspace(0.0, 10.0, 60),
         "G": np.tile([0.0, 1.0, 2.0], 20),
@@ -40,18 +40,18 @@ def test_in_support_correction_applied(scenario):
     res = scenario.evaluate(8.0)
 
     assert res.in_support and res.applicable
-    # Fixed-parameter arithmetic: net = 20.0 + 95.20 − 95.50 = 19.70.
+    # 固定參數的算術：net = 20.0 + 95.20 − 95.50 = 19.70。
     assert res.net == pytest.approx(19.70)
     assert res.margin_uncorrected == pytest.approx(-0.20)
     assert res.decision_uncorrected == "CLOSE"
-    # Correction fields are populated and internally consistent.
+    # 修正相關的欄位都有填值，而且彼此一致。
     assert res.delta_per_lap is not None
     assert res.delta_total == pytest.approx(res.n_remaining * res.delta_per_lap)
     assert res.gap_corrected == pytest.approx(res.gap + res.delta_total)
     assert res.margin_corrected == pytest.approx(res.gap_corrected - res.net)
     assert res.decision_corrected in ("OPEN", "CLOSE")
     assert res.flipped == (res.decision_corrected != res.decision_uncorrected)
-    # 8.0 sits well above the mean of a rising response → positive correction.
+    # 8.0 遠高於一條上升反應曲線的平均值 → 修正量為正。
     assert res.delta_per_lap > 0
 
 
@@ -65,7 +65,7 @@ def test_out_of_support_correction_withheld(scenario):
     assert res.margin_corrected is None
     assert res.decision_corrected is None
     assert res.flipped is False
-    # net/gap are pure arithmetic — always computed, even at OOD.
+    # net 與 gap 是純算術——即使在 OOD 也一定會算出來。
     assert res.net == pytest.approx(19.70)
     assert res.gap == pytest.approx(19.50)
     assert res.margin_uncorrected == pytest.approx(-0.20)
@@ -73,10 +73,10 @@ def test_out_of_support_correction_withheld(scenario):
 
 
 def test_from_cache_reproduces_the_model_path(scenario):
-    """A JSON round-trip through to_cache/from_cache must change nothing.
+    """經過 to_cache/from_cache 的 JSON 來回轉換，結果必須完全不變。
 
-    That equivalence is what lets the deployed demo ship the PDP curve instead
-    of the fitted forest.
+    正是這個等價關係，讓只需要修正量的場合可以只帶 PDP 曲線，
+    而不必帶著擬合好的森林。
     """
     rebuilt = UndercutScenario.from_cache(
         json.loads(json.dumps(scenario.to_cache())),
@@ -90,6 +90,6 @@ def test_from_cache_reproduces_the_model_path(scenario):
 
     assert rebuilt.support == scenario.support
     assert rebuilt.training_mean == scenario.training_mean
-    # Spans below-support, both edges, in-support, and above-support.
+    # 涵蓋支撐區間之下、兩個邊界、區間之內，以及區間之上。
     for value in (-5.0, 0.0, 5.0, 8.0, 10.0, 12.0):
         assert asdict(rebuilt.evaluate(value)) == asdict(scenario.evaluate(value))

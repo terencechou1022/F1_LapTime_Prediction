@@ -1,4 +1,4 @@
-"""CLI: train regression models (DT, RF, XGBoost) for a given experiment."""
+"""CLI：為指定實驗訓練迴歸模型（DT、RF、XGBoost）。"""
 from __future__ import annotations
 
 import argparse
@@ -59,7 +59,7 @@ def _train_one(
             )
             print(f"  plots saved to {save_plots_dir}/")
         else:
-            # Interactive mode (no --save-plots-dir, no --no-plots): show on screen
+            # 互動模式（沒給 --save-plots-dir、也沒給 --no-plots）：直接顯示在螢幕上
             Visualizer.feature_importance(trainer.model, list(trainer.x_train.columns))
             Visualizer.prediction_vs_actual(trainer.y_valid, y_pred)
             Visualizer.residual_distribution(trainer.y_valid, y_pred)

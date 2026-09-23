@@ -1,4 +1,4 @@
-"""CLI: download raw race data via fastf1."""
+"""CLI：透過 fastf1 下載原始賽事資料。"""
 from __future__ import annotations
 
 import argparse

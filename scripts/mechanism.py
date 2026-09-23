@@ -1,19 +1,18 @@
-"""CLI: PDP/ICE figures + symmetric undercut-scenario tables.
+"""CLI：PDP/ICE 圖 + 對稱的 undercut 情境表。
 
-Loads the two study RF models, writes the 8 PDP/ICE figures + feature
-ranges, then runs the two **symmetric** undercut scenarios — identical fixed
-parameters (pit_loss / gap / out-lap / in-lap / N), differing only in whether
-the queried condition is in-support or OOD:
+載入兩項研究的 RF 模型，輸出 8 張 PDP/ICE 圖與特徵範圍，接著跑兩個**對稱**的
+undercut 情境——固定參數完全相同（pit_loss / gap / 出站圈 / 進站圈 / N），
+唯一的差別是被查詢的條件落在支撐區間內還是 OOD：
 
-    wind (Saudi)  : current HeadWind in training support  → correction applies → decision flips
-    temp (Las Vegas): current TrackTemp OOD (< training min) → correction withheld → cannot evaluate
+    wind（沙烏地）   ：當前 HeadWind 在訓練支撐區間內 → 修正生效 → 決策翻轉
+    temp（Las Vegas）：當前 TrackTemp 為 OOD（低於訓練最小值）→ 修正收回 → 無法評估
 
-Outputs:
+輸出：
     plots/figure_6_{1,2}_pdp_{HeadWind,CrossWind}.png   plots/figure_6_{5,6}_pdp_{AirTemp,TrackTemp}.png
     plots/figure_6_{3,4}_ice_{HeadWind,CrossWind}.png   plots/figure_6_{7,8}_ice_{AirTemp,TrackTemp}.png
     stdout: feature ranges + the two scenario tables
 
-Usage:
+使用方式：
     python scripts/mechanism.py
 """
 from __future__ import annotations
@@ -29,8 +28,8 @@ from f1lab import TempPreprocessor, UndercutScenario, Visualizer, WindPreprocess
 
 OUT_DIR = _bootstrap.PROJECT_ROOT / "plots"
 
-# Two studies, fully parallel. Each: model file, training data, and the four
-# (feature, pdp_fig_num, ice_fig_num) figure specs.
+# 兩項研究完全對稱。每一項包含：模型檔、訓練資料，以及四組
+# (特徵， pdp 圖號， ice 圖號) 的圖表規格。
 _STUDIES = {
     "wind": {
         "preprocessor": WindPreprocessor,
@@ -46,15 +45,15 @@ _STUDIES = {
     },
 }
 
-# Shared undercut parameters — IDENTICAL across both studies (the symmetry).
-# pit_loss/gap/out-lap/in-lap are strategy-desk parameters (not telemetry-measurable),
-# so they are illustrative; the ENVIRONMENTAL conditions below are REAL measured values.
+# 共用的 undercut 參數——兩項研究完全相同（這就是那個對稱）。
+# pit_loss/gap/出站圈/進站圈 屬於策略桌參數（遙測量不到），所以是示意用的；
+# 底下的「環境條件」則是真實量測到的值。
 SCENARIO = dict(pit_loss=20.0, gap=19.50, ours_new_outlap=95.2, rival_old_inlap=95.5, n_remaining=10)
 
-# "Current" environmental conditions read from the REAL cross-domain 2025 test races:
-#   wind: Saudi 2025 strongest measured headwind (an undercut is a single-lap decision →
-#         use the wind at that moment; the race-mean −0.31 sits in the flat PDP region)
-#   temp: Las Vegas 2025 mean track temp (the venue's cold regime, ~17 °C → OOD)
+# 「當前」環境條件讀自真實的 2025 跨域測試賽事：
+#   wind：沙烏地 2025 實測最強逆風（undercut 是單圈決策 → 取當下那一刻的風；
+#         全場平均 −0.31 落在 PDP 的平坦區）
+#   temp：Las Vegas 2025 平均賽道溫度（該場地的低溫區間，約 17 °C → OOD）
 SAUDI_DATA = "data/merged/2025_Saudi_Arabian_Grand_Prix.xlsx"
 VEGAS_DATA = "data/merged/2025_Las_Vegas_Grand_Prix.xlsx"
 
@@ -90,7 +89,7 @@ def main() -> int:
             )
             print(f"  saved figure_6_{pdp_num}_pdp_{feature}.png, figure_6_{ice_num}_ice_{feature}.png")
 
-    # ---- feature ranges ----
+    # ---- 特徵範圍 ----
     print("\n" + "=" * 60)
     print("Feature ranges (training support)")
     print("=" * 60)
@@ -102,13 +101,13 @@ def main() -> int:
         lo, hi, mean = x_temp[feat].min(), x_temp[feat].max(), x_temp[feat].mean()
         print(f"  Temp  {feat:10s}: [{lo:6.2f}, {hi:6.2f}] °C    mean={mean:5.2f}   range={hi - lo:.2f}")
 
-    # ---- symmetric undercut scenarios ----
+    # ---- 對稱的 undercut 情境 ----
     print("\n" + "=" * 60)
     print("Two symmetric undercut scenarios (identical fixed params)")
     print("=" * 60)
     print(f"  shared: {SCENARIO}")
 
-    # WIND (Saudi cross-domain, physics-compatible): current HeadWind in-support → apply
+    # WIND（沙烏地跨域，物理條件相容）：當前 HeadWind 在支撐區間內 → 套用修正
     print("\n" + "-" * 60)
     print("(1) Saudi Arabia 2025 — wind correction (cross-domain, in-support)")
     print("-" * 60)
@@ -120,7 +119,7 @@ def main() -> int:
     wind_res = wind.evaluate(current_hw)
     wind_res.report()
 
-    # TEMP (Las Vegas cross-domain, OOD): current TrackTemp out-of-support → withhold
+    # TEMP（Las Vegas 跨域，OOD）：當前 TrackTemp 超出支撐區間 → 收回修正
     print("\n" + "-" * 60)
     print("(2) Las Vegas 2025 — temperature correction (cross-domain, OOD)")
     print("-" * 60)

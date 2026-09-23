@@ -1,16 +1,16 @@
-"""Summarize pipeline output logs into structured CSVs.
+"""把管線輸出的 log 彙整成結構化的 CSV。
 
-Reads `logs/*.log` produced by `main.py` (30 files when complete) and writes:
-    summary/metrics.csv      — 24 rows: eval results per (study, domain, mode, model)
-    summary/best_params.csv  — 6 rows: per (study, model) best_params + holdout metrics
+讀取 `main.py` 產生的 `logs/*.log`（跑完整時共 30 份），寫出：
+    summary/metrics.csv      — 24 列：每個 (研究， 域， 模式， 模型) 的評估結果
+    summary/best_params.csv  — 6 列：每個 (研究， 模型) 的 best_params + 保留集指標
 
-Missing logs produce warnings but do not crash. Idempotent: re-running overwrites
-the output CSVs in place. Designed to be run AFTER `main.py` completes; can also
-be re-run after partial retraining to refresh whatever metrics are present.
+缺少的 log 會產生警告，但不會讓程式掛掉。這支腳本是冪等的：重跑會就地覆寫輸出的
+CSV。設計上是在 `main.py` 跑完「之後」執行；也可以在局部重訓之後再跑一次，
+把當下存在的指標刷新。
 
-Usage:
-    python scripts/summarize.py                          # default paths
-    python scripts/summarize.py --logs-dir custom_logs   # override
+使用方式：
+    python scripts/summarize.py                          # 使用預設路徑
+    python scripts/summarize.py --logs-dir custom_logs   # 覆寫路徑
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ MODELS = ("dt", "rf", "xgb")
 DOMAINS = ("indomain", "crossdomain")
 MODES = ("raw", "bias")
 
-# A metric line looks like e.g.:
+# 指標那一行長得像這樣：
 #   [holdout] MAE:  0.452
 #   [raw] R2:   -0.238
 #   [bias-corrected] RMSE: 0.601
@@ -36,7 +36,7 @@ _BEST_PARAMS_RE = re.compile(r"Best params:\s+(\{.+\})")
 
 
 def _parse_metrics(log_path: Path, tag: str) -> dict[str, float] | None:
-    """Return {mae, mse, rmse, r2} for the requested tag, or None if missing."""
+    """回傳指定標籤的 {mae, mse, rmse, r2}，找不到就回傳 None。"""
     if not log_path.exists():
         return None
     txt = log_path.read_text(encoding="utf-8", errors="replace")
@@ -69,7 +69,7 @@ def _build_metrics_rows(logs_dir: Path) -> tuple[list[dict], list[str]]:
             for mode in MODES:
                 for model in MODELS:
                     log_path = logs_dir / f"eval_{study}_{domain}_{mode}_{model}.log"
-                    # raw-mode log → take [raw] block;  bias-mode log → take [bias-corrected]
+                    # raw 模式的 log → 取 [raw] 區塊；bias 模式的 log → 取 [bias-corrected]
                     tag = "raw" if mode == "raw" else "bias-corrected"
                     metrics = _parse_metrics(log_path, tag)
                     if metrics is None:
@@ -134,7 +134,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # metrics.csv — 24 expected rows
+    # metrics.csv — 預期 24 列
     metrics_rows, missing_eval = _build_metrics_rows(args.logs_dir)
     metrics_path = args.out_dir / "metrics.csv"
     _write_csv(
@@ -146,7 +146,7 @@ def main() -> int:
     if missing_eval:
         print(f"  WARN: missing eval logs ({len(missing_eval)}): {missing_eval}")
 
-    # best_params.csv — 6 expected rows
+    # best_params.csv — 預期 6 列
     params_rows, missing_train = _build_params_rows(args.logs_dir)
     params_path = args.out_dir / "best_params.csv"
     _write_csv(

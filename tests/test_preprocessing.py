@@ -1,4 +1,4 @@
-"""Tests for the BaseLapPreprocessor pipeline (filter, stint features, target, one-hot alignment)."""
+"""BaseLapPreprocessor 管線的測試（過濾、stint 特徵、預測目標、one-hot 對齊）。"""
 from __future__ import annotations
 
 import numpy as np
@@ -18,12 +18,12 @@ def test_invalid_lap_filter(laps_df):
     ver = _laps(df, "VER")
     ham = _laps(df, "HAM")
 
-    # Pit-in lap (15), pit-out lap (16), and the lap after the pit-out (17) are gone.
+    # 進站圈（15）、出站圈（16），以及出站圈的下一圈（17）都不見了。
     assert not {15, 16, 17} & ver
     assert not {15, 16, 17} & ham
-    # Non-green lap (VER 5) and the lap immediately after it (6) are gone.
+    # 非全綠旗的圈（VER 第 5 圈）與緊接其後那一圈（6）都不見了。
     assert not {5, 6} & ver
-    # The second lap after an invalid lap survives; HAM's green lap 5 survives.
+    # 無效圈之後第二圈存活；HAM 全綠旗的第 5 圈也存活。
     assert 7 in ver
     assert {5, 6} <= ham
 
@@ -31,7 +31,7 @@ def test_invalid_lap_filter(laps_df):
 def test_lap_in_stint_computed_pre_filter(laps_df):
     df, _, _ = TempPreprocessor(laps_df).run()
 
-    # Surviving laps keep their original in-stint position (gaps allowed).
+    # 存活下來的圈保住它原本在 stint 內的位置（容許中間有缺號）。
     expected = df["LapNumber"] - (df["Stint"] - 1) * LAPS_PER_STINT
     assert (df["LapInStint"] == expected).all()
 
@@ -51,8 +51,8 @@ def test_target_is_delta_to_stint_best(laps_df):
         assert np.allclose(group["LapTimeDelta"], expected)
         assert (group["LapTimeDelta"] == 0).any()  # stint-best lap has delta 0
 
-    # Known value: VER stint 2 survivors start at lap 18 (16/17 filtered), so
-    # the stint minimum is lap 18 itself and lap 19 sits 0.4 s above it.
+    # 已知值：VER 的 stint 2 存活圈從第 18 圈開始（16、17 被過濾掉），
+    # 所以該 stint 的最小值就是第 18 圈本身，而第 19 圈比它高 0.4 秒。
     ver_s2 = df[(df["Driver"] == "VER") & (df["Stint"] == 2)].set_index("LapNumber")
     assert ver_s2.loc[18, "LapTimeDelta"] == 0.0
     assert np.isclose(ver_s2.loc[19, "LapTimeDelta"], 0.4)

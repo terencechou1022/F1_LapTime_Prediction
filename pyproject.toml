@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "f1lab"
 version = "1.0.0"
-description = "OOP toolkit for analyzing weather effects on F1 lap performance (2022-2025 ground-effect era)"
+description = "分析風與氣溫如何影響 F1 單圈表現的物件導向工具組（2022–2025 地面效應世代）"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -26,3 +26,8 @@ dev = ["pytest>=8"]
 
 [tool.setuptools]
 packages = ["f1lab"]
+
+[tool.pytest.ini_options]
+# 限定只收集 tests/：專案根目錄在本機可能留有未納管的舊腳本，
+# 不設這行的話裸跑 pytest 會連它們一起收集，在收集階段就失敗。
+testpaths = ["tests"]

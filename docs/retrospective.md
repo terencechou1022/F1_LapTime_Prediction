@@ -1,41 +1,41 @@
-# Engineering Retrospective
+# 工程回顧
 
-Lessons that shaped this codebase — the decisions that survived contact with real data, and the mistakes that taught the most. Companion to [methodology.md](methodology.md), which covers *what* was built; this covers *why it ended up this way*.
+形塑這份程式碼的那些教訓——撐過真實資料考驗的決定，以及教會我最多的錯誤。這份文件與 [methodology.md](methodology.md) 互補：那邊講**做了什麼**，這邊講**為什麼最後長成這樣**。
 
-## 1. Design the experiment so the result is attributable
+## 1. 把實驗設計成結果可歸因
 
-The headline finding — wind generalizes cross-domain, temperature fails catastrophically — is only interesting if the difference can't be blamed on modeling choices. That constraint drove the architecture: both studies share the same 9-feature baseline, the same splits, the same grids, the same headline model, enforced by a template-method base class rather than by convention. When the two studies then behave differently, the mechanism and its training distribution are the only remaining explanations.
+主要發現——風能跨域泛化、溫度徹底失敗——只有在「這個差異不能推給建模選擇」的前提下才有意思。這個約束驅動了整個架構：兩項研究共用同一組 9 個特徵的基線、同一套切分、同一批網格、同一個主模型，而且是由一個 template method 的基底類別強制執行，不是靠慣例。當兩項研究接著表現不同時，能解釋的就只剩機制本身與它的訓練分佈。
 
-The discipline had teeth. An early feature, `TyreLifeNorm × TrackTemp`, improved fit — and was removed anyway, because it back-doored temperature into the wind model and quietly broke the "this model never sees the other mechanism" claim. Tree ensembles learn interactions from main effects; the isolation principle mattered more than a marginal metric gain.
+這個紀律是真的會咬人的。早期有一個特徵 `TyreLifeNorm × TrackTemp` 讓擬合變好——但還是被拿掉了，因為它從後門把溫度帶進風的模型，悄悄破壞了「這個模型從沒看過另一個機制」這個主張。樹系集本來就會從主效應學到交互作用；隔離原則比那一點點指標增益重要。
 
-## 2. Make the model refuse
+## 2. 讓模型學會拒絕
 
-The strategy layer (`f1lab/strategy.py`) withholds its correction term whenever the queried condition falls outside the feature range the model was trained on. This is the project's central design position: a regression will emit a number for any input, so *knowing when not to predict* has to be built, not hoped for.
+策略層（`f1lab/strategy.py`）只要被查詢的條件落在模型訓練過的特徵範圍之外，就會收回它的修正項。這是整個專案的核心設計立場：迴歸模型對任何輸入都會吐出一個數字，所以**知道什麼時候不該預測**必須被做出來，不能只是期待它自己發生。
 
-Two details matter. First, the guard is precise about what it refuses — the pit-stop arithmetic (`net`, `gap`, the uncorrected decision) is always computed because it isn't a model output; only the model-dependent correction is withheld. Second, the refusal was validated empirically before being trusted: force-evaluating the temperature model on the out-of-support race yields R² = −6.08, an order of magnitude worse than guessing the mean. The guard doesn't just seem prudent; the evaluation study proves the number it suppresses would have been wrong.
+有兩個細節要緊。第一，這道守門對於自己拒絕什麼很精確——進站的算術（`net`、`gap`、未修正的決策）永遠都會算，因為那不是模型輸出；被收回的只有依賴模型的那個修正項。第二，這個「拒絕」在被信任之前先經過實測驗證：硬把溫度模型套到支撐區間外的那場比賽，會得到 R² = −6.08，比直接猜平均值還差一個數量級。這道守門不只是看起來謹慎；評估研究證明了它壓下來的那個數字本來就會是錯的。
 
-## 3. Let the data kill your story
+## 3. 讓資料殺掉你的故事
 
-An early draft of the undercut scenario used a hand-picked wind value — chosen, uncomfortably, because it made the decision flip. That version was thrown away and the scenario was rebuilt to read its environmental inputs from the real 2025 race files: the Saudi headwind is the measured race maximum, the Las Vegas track temperature is the measured race mean, and the unmeasurable strategy-desk parameters (pit loss, gap, lap times) are explicitly labeled illustrative.
+undercut 情境的早期版本用的是一個人工挑出來的風速值——而挑它的理由，講出來並不舒服：因為它剛好讓決策翻轉。那個版本被丟掉了，情境重寫成從 2025 的真實賽事檔讀取環境輸入：沙烏地的逆風是實測的全場最大值、Las Vegas 的賽道溫度是實測的全場平均，而那些量不到的策略桌參數（進站損失、gap、圈速）則明確標示為示意用。
 
-The rebuilt story turned out better than the invented one — the decision still flips, but now on a defensible number — and the episode became a working rule: if a value can be measured from data, measure it; if it can't, label it; and let the narrative follow the data rather than the other way around.
+重寫之後的故事反而比捏造的那個好——決策一樣會翻，但現在是翻在一個站得住腳的數字上——這段經歷也變成一條工作守則：能從資料量出來的值就去量；量不出來的就標示清楚；讓敘事跟著資料走，而不是反過來。
 
-## 4. Grids that can answer questions
+## 4. 能回答問題的網格
 
-Hyperparameter grids here follow two rules: every library default is reachable (so "the default won" is a finding, not a search gap), and every axis carries margin beyond the plausible optimum (so a boundary pick is a diagnostic, not a dead end — if `n_estimators=2000` ever wins, `cv_results_` quantifies the gap to 1500 and answers whether the bound was binding). Both winning XGBoost configurations chose `learning_rate=0.05` and `max_depth=3` with room to spare on every axis — evidence the search was wide enough, documented in the grid's inline comments rather than in a notebook someone would lose.
+這裡的超參數網格遵守兩條規則：每個函式庫預設值都搆得到（所以「預設值勝出」是一個發現，不是搜尋沒涵蓋到），而且每個軸在合理最佳值之外都留有餘裕（所以邊界被選中時是一個診斷，不是死路——萬一 `n_estimators=2000` 真的勝出，`cv_results_` 可以量出它與 1500 的差距，回答這個上界到底有沒有綁住結果）。兩個勝出的 XGBoost 設定都選了 `learning_rate=0.05` 與 `max_depth=3`，而且每個軸都還有餘裕——這就是搜尋夠寬的證據，而且這些理由寫在網格的行內註解裡，不是寫在某個遲早會不見的 notebook 裡。
 
-## 5. Leakage is a design question, not a bug class
+## 5. 洩漏是設計問題，不是一類 bug
 
-Three choices in this codebase exist purely to keep future information out of the model: `train_test_split(shuffle=False)` with `TimeSeriesSplit` so no fold trains on its own future; stint-position features computed *before* invalid-lap filtering so a lap's recorded stint position never depends on which other laps got dropped; and a rejected feature idea — sector times — because sector times sum to lap time and would have leaked the target into the inputs, however good they looked in a related classification paper. Each is one line of code; each was a deliberate decision recorded next to the line.
+這份程式碼裡有三個選擇，存在的唯一目的就是不讓未來的資訊進到模型裡：`train_test_split(shuffle=False)` 搭配 `TimeSeriesSplit`，讓沒有任何一折用自己的未來來訓練；stint 位置相關的特徵在無效圈過濾**之前**算好，讓某一圈記錄到的 stint 位置永遠不取決於其他哪些圈被丟掉；以及一個被否決的特徵構想——分段時間（sector times）——因為各分段時間加起來就是單圈時間，會把預測目標洩漏進輸入，不管它在某篇相關的分類論文裡看起來多好用。每一項都只是一行程式碼；每一項都是寫在那一行旁邊的刻意決定。
 
-## 6. Tests encode the contracts you discovered, not the ones you wished for
+## 6. 測試要編碼你發現的契約，不是你希望存在的契約
 
-Writing the test suite after the pipeline was mature surfaced behaviors nobody had written down: the target re-bases on the *surviving* best lap when the true stint-fastest was filtered out; the "drop the lap after an invalid lap" rule deliberately carries across a stint boundary; rows with non-positive normalized tyre life are silently discarded. The tests assert what the code actually does, with fixtures engineered to hit each edge — so the next refactor breaks loudly instead of silently changing the target definition. Sixteen deterministic tests on synthetic data now gate every push in CI, while the real 75–80 hour training run stays out of it; a `--quick` mode (tiny grids, mutually exclusive with `--save` so it can never overwrite the real models) smoke-tests the genuine pipeline in about fifteen seconds.
+在管線成熟之後才寫測試，逼出了一些從沒有人寫下來的行為：當某個 stint 真正最快的那一圈被過濾掉時，預測目標會改以**存活下來**的最佳圈重新定基；「丟掉無效圈的下一圈」這條規則刻意跨越 stint 邊界；正規化輪胎圈齡非正的列會被靜默丟棄。這些測試斷言的是程式實際在做的事，fixture 也是針對每個邊界刻意設計的——這樣下一次重構會大聲壞掉，而不是默默改掉預測目標的定義。現在有 17 個跑在合成資料上的確定性測試在 CI 守住每一次推送，而那個真正要跑 75 至 80 小時的訓練則留在 CI 之外；`--quick` 模式（極小網格，並且與 `--save` 互斥，所以不可能覆寫真正的模型）則在大約十五秒內對真實管線做完冒煙測試。
 
-## 7. Numbers in prose rot
+## 7. 散文裡的數字會腐壞
 
-Every metric in the documentation traces to a generated artifact (`summary/metrics.csv`, `summary/best_params.csv`, or the deterministic console output of `scripts/mechanism.py`), and claims get re-verified against those artifacts whenever the docs change. A review pass caught a summary sentence asserting the three models' hold-out scores sat "within 0.07 of each other" when the actual spread was 0.136 — the defensible claim (the main model sits within 0.07 *of the best*) said something subtly different. The rule that followed: documentation is part of the change, updated in the same commit, and any numeric or directional claim gets recomputed from source before it ships.
+文件裡的每一個指標都能追溯到某個產生出來的產物（`summary/metrics.csv`、`summary/best_params.csv`，或 `scripts/mechanism.py` 的確定性主控台輸出），而且文件一改動，這些主張就會重新對著那些產物驗一次。有一次審閱抓到一句摘要寫著三個模型的保留集分數「彼此相差在 0.07 以內」，實際的離散卻是 0.136——站得住腳的講法（主模型落在**最佳值**的 0.07 以內）說的是微妙但不同的一件事。由此而來的規則是：文件是變更的一部分，要在同一個 commit 裡更新，而任何數值或方向性的主張在出貨前都要從原始碼重算一次。
 
-## 8. Reproducibility is a feature, with a price tag on it
+## 8. 可重現性是一個功能，而且標著價錢
 
-Determinism here is layered: seeds everywhere (`random_state=42`), an exact `==` dependency lock for reproducing the reported numbers alongside permissive floors in `pyproject.toml` for library users, one command (`python main.py`) that regenerates every table and figure, and an honest cost label on the full run (~75–80 hours) with a fifteen-second smoke path for everyone who just wants proof the pipeline works. Reproducibility claims that omit the price tag are marketing; the point of publishing the lock, the seeds, and the runtime table together is that someone could actually pay it.
+這裡的確定性是分層的：到處都設種子（`random_state=42`）、一份以 `==` 釘死的相依鎖定用來重現本文報告的數字、`pyproject.toml` 裡另外給函式庫使用者較寬鬆的版本下限、一道指令（`python main.py`）就能重新產生每一張表與每一張圖，以及一個對完整執行成本誠實的標價（約 75 至 80 小時）加上一條十五秒的冒煙路徑，給只想確認管線能跑的人。省略價錢的可重現性宣稱是行銷；把鎖定檔、種子與耗時表一起公開的重點在於，別人真的付得起這個代價。

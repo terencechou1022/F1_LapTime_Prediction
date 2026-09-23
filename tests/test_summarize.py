@@ -1,4 +1,4 @@
-"""Tests for scripts/summarize.py log parsing (canned logs in the real format)."""
+"""scripts/summarize.py 的 log 解析測試（用真實格式的罐頭 log）。"""
 from __future__ import annotations
 
 import sys
@@ -10,7 +10,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import summarize
 
-# Canned logs matching the real Metrics.report / ModelEvaluator output format.
+# 與真實的 Metrics.report / ModelEvaluator 輸出格式一致的罐頭 log。
 RAW_LOG = """\
 [raw] MAE:  0.457
 [raw] MSE:  0.383
@@ -47,7 +47,7 @@ def test_parse_metrics_by_tag(tmp_path):
     assert summarize._parse_metrics(log, "raw") == {
         "mae": 0.457, "mse": 0.383, "rmse": 0.619, "r2": 0.209,
     }
-    # Wrong tag / missing file → None.
+    # 標籤錯誤或檔案不存在 → None。
     assert summarize._parse_metrics(log, "bias-corrected") is None
     assert summarize._parse_metrics(tmp_path / "nope.log", "raw") is None
 
@@ -65,7 +65,7 @@ def test_build_metrics_rows(tmp_path):
         "mae": 0.457, "mse": 0.383, "rmse": 0.619, "r2": 0.209,
         "bias_offset": "",
     }
-    # Bias-mode row takes the [bias-corrected] block and carries the offset.
+    # bias 模式那一列取 [bias-corrected] 區塊，並帶著偏移量。
     assert rows[1] == {
         "study": "temp", "domain": "crossdomain", "mode": "bias", "model": "rf",
         "mae": 0.817, "mse": 1.123, "rmse": 1.060, "r2": -1.477,

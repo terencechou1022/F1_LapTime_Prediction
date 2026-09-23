@@ -1,15 +1,14 @@
-"""Experiment-specific preprocessor subclasses.
+"""各實驗專屬的前處理器子類別。
 
-Each subclass declares its `experiment_name` (which auto-registers it on
-`BaseLapPreprocessor`) and extends `BASE_FEATURES` with the study's own
-explanatory variables:
+每個子類別宣告自己的 `experiment_name`（會自動註冊到 `BaseLapPreprocessor`），
+並在 `BASE_FEATURES` 之外補上該研究自己的解釋變數：
 
-    Temp study  ← AirTemp, TrackTemp  (variables under investigation)
-    Wind study  ← HeadWind, CrossWind (variables under investigation)
+    Temp 研究  ← AirTemp、TrackTemp  （受檢驗的變數）
+    Wind 研究  ← HeadWind、CrossWind （受檢驗的變數）
 
-The shared `BASE_FEATURES` (LapNumber, LapInStint, Compound, TyreLife,
-TyreLifeNorm, FreshTyre, FuelLoad, Humidity, Rainfall) act as control
-variables in both studies.
+共用的 `BASE_FEATURES`（LapNumber、LapInStint、Compound、TyreLife、
+TyreLifeNorm、FreshTyre、FuelLoad、Humidity、Rainfall）在兩項研究裡
+都扮演控制變數。
 """
 from __future__ import annotations
 
@@ -21,7 +20,7 @@ from f1lab.preprocessing import BaseLapPreprocessor
 
 
 class TempPreprocessor(BaseLapPreprocessor):
-    """Temp study (temperature-driven tyre degradation): AirTemp / TrackTemp as explanatory."""
+    """Temp 研究（溫度驅動的輪胎衰退）：以 AirTemp / TrackTemp 為解釋變數。"""
 
     experiment_name: ClassVar[str] = "temp"
 
@@ -31,7 +30,7 @@ class TempPreprocessor(BaseLapPreprocessor):
 
 
 class WindPreprocessor(BaseLapPreprocessor):
-    """Wind study (wind-driven performance loss): HeadWind / CrossWind as explanatory."""
+    """Wind 研究（風造成的表現損失）：以 HeadWind / CrossWind 為解釋變數。"""
 
     experiment_name: ClassVar[str] = "wind"
 
@@ -48,5 +47,5 @@ class WindPreprocessor(BaseLapPreprocessor):
 
 
 def get_preprocessor(name: str) -> type[BaseLapPreprocessor]:
-    """Backwards-compatible facade for `BaseLapPreprocessor.get`."""
+    """`BaseLapPreprocessor.get` 的相容性門面。"""
     return BaseLapPreprocessor.get(name)

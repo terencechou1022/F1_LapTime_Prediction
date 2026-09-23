@@ -1,4 +1,4 @@
-"""Tests for the preprocessor self-registry and the symmetric feature design."""
+"""前處理器自動註冊機制與對稱特徵設計的測試。"""
 from __future__ import annotations
 
 import pandas as pd

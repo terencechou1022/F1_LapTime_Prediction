@@ -1,4 +1,4 @@
-# ----- Python -----
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -9,13 +9,13 @@ __pycache__/
 build/
 dist/
 
-# ----- Virtual environments -----
+# 虛擬環境
 .venv/
 venv/
 env/
 ENV/
 
-# ----- IDE / editor -----
+# 編輯器與作業系統
 .vscode/
 .idea/
 *.swp
@@ -23,38 +23,38 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# ----- Project artifacts -----
-# raw downloads are huge and regenerable; the 6 merged xlsx (~2 MB) are committed
+# 專案產物。原始下載檔體積龐大且可重新產生；
+# 合併後的 6 份 xlsx（約 2 MB）則進版控。
 data/*
 !data/merged/
 
-# Trained models (regenerable from data + scripts/train.py)
+# 訓練好的模型（可由 data + scripts/train.py 重新產生）
 models/
 
-# fastf1 cache
+# fastf1 快取
 fastf1_cache/
 
-# Plots / outputs
+# 繪圖與輸出
 plots/
 *.png
 *.pdf
-# ...but keep the committed portfolio diagrams
+# ……但作品集用的示意圖要留著
 !docs/img/
 !docs/img/*.png
 
-# Training / evaluation logs (regenerable)
+# 訓練與評估日誌（可重新產生）
 logs/
 
-# summary/metrics.csv + best_params.csv are committed (headline results)
+# summary/metrics.csv 與 best_params.csv 進版控（代表性數字）
 
-# ----- Local secrets / settings -----
+# 本機祕密與設定
 tasks/
 *.env
 .env.local
 
-# ----- Legacy / scratch files -----
+# 舊版與暫存檔
 legacy/
 .tmp*
 
-# ----- Tool caches -----
+# 工具快取
 .pytest_cache/

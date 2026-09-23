@@ -1,11 +1,10 @@
-"""Model training and evaluation classes.
+"""模型訓練與評估類別。
 
-`ModelTrainer` runs a strict three-tier holdout:
-    - Train: first 80% (time-ordered) with TimeSeriesSplit CV inside
-    - Valid: last 20% (within-era held-out)
-`ModelEvaluator` runs the saved model on a separate test file (e.g. a
-held-out 2025 race), with optional median-residual bias correction
-to address year-on-year drift inside the same regulatory era.
+`ModelTrainer` 跑的是嚴格的三層保留切分：
+    - 訓練：依時序取前 80%，內部再做 TimeSeriesSplit 交叉驗證
+    - 驗證：後 20%（時代內的保留集）
+`ModelEvaluator` 把存下來的模型套到另一份測試檔上（例如保留的 2025 賽事），
+並可選擇套用殘差中位數的偏差修正，處理同一個規則時代內的年度漂移。
 """
 from __future__ import annotations
 
@@ -26,7 +25,7 @@ from f1lab.preprocessing import BaseLapPreprocessor
 
 @dataclass
 class Metrics:
-    """Regression metrics: MAE, MSE, RMSE, R²."""
+    """迴歸指標：MAE、MSE、RMSE、R²。"""
     mae: float
     mse: float
     rmse: float
@@ -51,12 +50,11 @@ class Metrics:
 
 
 class ModelTrainer:
-    """Train a regression model with TimeSeriesSplit hyperparameter search.
+    """以 TimeSeriesSplit 做超參數搜尋來訓練迴歸模型。
 
-    Model class is selected by name ('dt', 'rf', 'xgb'); see
-    `f1lab.models.MODEL_SPECS` for the per-model estimator factories and
-    grids. Param grid can be overridden via `param_grid=`; `quick=True`
-    selects the tiny smoke-test grid instead of the full one.
+    模型類別以名稱選擇（'dt'、'rf'、'xgb'）；各模型的估計器工廠與網格
+    見 `f1lab.models.MODEL_SPECS`。參數網格可用 `param_grid=` 覆寫；
+    `quick=True` 會改用極小的冒煙測試網格，而不是完整網格。
     """
 
     DEFAULT_MODEL: ClassVar[str] = "xgb"
@@ -148,10 +146,9 @@ class EvaluationResult:
 
 
 class ModelEvaluator:
-    """Run a saved model against a separate dataset.
+    """把存下來的模型套到另一份資料集上執行。
 
-    Optionally apply median-residual bias correction to remove
-    year-on-year drift within the same regulatory era.
+    可選擇套用殘差中位數的偏差修正，移除同一個規則時代內的年度漂移。
     """
 
     def __init__(

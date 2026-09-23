@@ -1,108 +1,108 @@
-# Methodology
+# 方法論
 
-Quantifying weather effects on Formula 1 lap times in the 2022–2025 ground-effect era — and testing exactly where such models stop being trustworthy.
+量化 2022–2025 地面效應時代的天氣如何影響 F1 單圈時間——並且測出這類模型從哪裡開始不再可信。
 
-This is the standalone research summary behind the codebase. Every number below is produced by the pipeline in this repository; see [Reproducing these results](#reproducing-these-results).
+這是這份程式碼背後、可獨立閱讀的研究摘要。底下每一個數字都由本 repo 的管線產生，見[重現這些結果](#重現這些結果)。
 
-## 1. Motivation & research questions
+## 1. 動機與研究問題
 
-F1 engineering folklore treats weather qualitatively: "heat accelerates tyre degradation", "a headwind down the main straight costs lap time". These claims are directionally accepted but rarely stated in units a strategist could act on. This research project asks two questions:
+F1 的工程圈對天氣的說法多半是定性的：「高溫加速輪胎衰退」、「主直線的逆風會吃掉單圈時間」。這些說法在方向上大家都接受，卻很少被講成策略人員能拿來用的單位。這個研究專案問兩個問題：
 
-1. **Quantification** — how many *seconds per lap, per unit of environmental change* (per m/s of wind, per °C of temperature) does a given mechanism cost, once tyre state, fuel load, and race progression are controlled for?
-2. **Validity boundary** — where does such a model *stop working*? A regression will happily emit a number for any input; the second question is whether the model can be made to know, and declare, when its answer has no statistical support.
+1. **量化**——在輪胎狀態、油量與比賽進程都被控制之後，某個機制**每單位環境變化**（每 m/s 的風、每 °C 的溫度）究竟讓每圈多花幾秒？
+2. **有效邊界**——這樣的模型在哪裡**不再管用**？迴歸模型對任何輸入都會樂意吐出一個數字；第二個問題是，能不能讓模型自己知道、而且講出來，它的答案什麼時候沒有統計依據。
 
-Both questions are answered with the same instrument: two structurally identical studies — one for wind, one for temperature — that differ only in the causal variable under investigation. One of them generalizes across circuits; the other fails catastrophically out-of-distribution. That contrast, and the design that makes it attributable to the mechanism rather than to modeling choices, is the core result.
+兩個問題用同一套器材回答：兩項結構完全相同的研究——一個做風、一個做溫度——彼此**只有**被檢驗的那個因果變數不同。其中一項能跨賽道泛化，另一項在分佈外徹底失敗。這個對比，以及讓它能歸因於機制本身而非建模選擇的設計，就是核心結果。
 
-## 2. Data
+## 2. 資料
 
-- **Source**: open F1 timing and weather telemetry via the public [`fastf1`](https://docs.fastf1.dev/) API. Lap tables and weather tables are downloaded per race (`scripts/download.py`), then joined per race with a backward-direction as-of merge on session time (`RaceDataMerger` in `f1lab/data.py`) — each lap picks up the most recent weather sample at or before its timestamp — and written as one tidy Excel file per circuit/era (`scripts/merge.py`).
-- **Era**: 2022–2025, the ground-effect regulatory era. All four seasons run under one set of technical regulations, which is what makes 2025 a legitimate *within-era* held-out test rather than a regime change.
-- **Circuits** (four, two per study):
+- **來源**：經由公開的 [`fastf1`](https://docs.fastf1.dev/) API 取得的 F1 計時與天氣遙測資料。圈速表與天氣表逐場下載（`scripts/download.py`），再以 session time 做向後方向的 as-of 合併逐場接起來（`f1lab/data.py` 的 `RaceDataMerger`）——每一圈取到的是它時間戳當下或之前最近的一筆天氣樣本——然後每個賽道／時代寫成一份整齊的 Excel 檔（`scripts/merge.py`）。
+- **時代**：2022–2025，地面效應的規則時代。四個賽季跑在同一套技術規則之下，這正是讓 2025 能當成**時代內**保留測試集、而不是規則變動的原因。
+- **賽道**（四條，每項研究兩條）：
 
-| Study | Training + in-domain test | Cross-domain test | Why this pair |
+| 研究 | 訓練 + 同域測試 | 跨域測試 | 為什麼配這一組 |
 |---|---|---|---|
-| **wind** | Azerbaijan GP (Baku), 2022–2024 train, 2025 test | Saudi Arabia GP (Jeddah), 2025 | Matching wind-physics regime: both high-speed street circuits |
-| **temp** | Singapore GP, 2022–2024 train, 2025 test | Las Vegas GP, 2025 | The only viable cold-end contrast on the 2022–2025 calendar |
+| **wind** | 亞塞拜然 GP（Baku），2022–2024 訓練、2025 測試 | 沙烏地阿拉伯 GP（Jeddah），2025 | 風的物理條件相同：兩者都是高速街道賽道 |
+| **temp** | 新加坡 GP，2022–2024 訓練、2025 測試 | Las Vegas GP，2025 | 2022–2025 賽程上唯一可用的低溫對照 |
 
-- **Working matrices** after preprocessing: wind training data `X = (2248, 13)`; temp training data `X = (2366, 14)`. The column-count difference is purely the compound one-hot: Azerbaijan's training races used SOFT/MEDIUM/HARD (3 indicator columns), Singapore's also saw INTERMEDIATE (4).
+- 前處理後的**工作矩陣**：wind 訓練資料 `X = (2248, 13)`；temp 訓練資料 `X = (2366, 14)`。欄數差異純粹來自輪胎配方的 one-hot：亞塞拜然的訓練場次用到 SOFT/MEDIUM/HARD（3 個指示欄），新加坡還出現過 INTERMEDIATE（4 個）。
 
-## 3. The symmetric dual-axis design
+## 3. 對稱的雙軸設計
 
-The core methodological idea: **two models share an identical 9-feature baseline of control variables and identical train/validation/test splits, and differ only in the two causal variables each study claims.** Any difference in behaviour between the two studies is therefore attributable to the mechanism and its training distribution — not to model choice, feature-set asymmetry, or split luck.
+方法論上的核心想法：**兩個模型共用一組完全相同、9 個控制變數的基線，以及完全相同的訓練／驗證／測試切分，彼此只有各自主張的那兩個因果變數不同。** 因此兩項研究之間任何行為差異，都可歸因於機制本身與它的訓練分佈——而不是模型選擇、特徵集不對稱，或切分的運氣。
 
-**Shared baseline controls** (`BASE_FEATURES`, 9 features):
+**共用的基線控制變數**（`BASE_FEATURES`，9 個）：
 
-| Feature | Definition |
+| 特徵 | 定義 |
 |---|---|
-| `LapNumber` | Race progression — a confounder for any lap-time model (drives both tyre-wear accumulation and fuel dynamics) |
-| `LapInStint` | Lap's original position within the driver-stint, computed *before* invalid-lap filtering, so surviving laps keep their true stint position |
-| `Compound` | Tyre compound, one-hot encoded |
-| `TyreLife` | Raw absolute tyre age in laps (carries across stints for inherited tyres) |
-| `TyreLifeNorm` | `TyreLife / max(TyreLife within driver-stint)` — stint-relative position in (0, 1] |
-| `FreshTyre` | New-tyre flag |
-| `FuelLoad` | `110 − LapNumber × 1.7` kg (published fuel-burn model; Cappello, 2025) |
-| `Humidity` | Weather state — affects air density (drag) for both studies |
-| `Rainfall` | Weather state — affects surface grip for both studies |
+| `LapNumber` | 比賽進程——任何單圈時間模型的混淆因子（同時驅動輪胎磨耗累積與油量動態） |
+| `LapInStint` | 該圈在車手 stint 內的原始位置，在無效圈過濾**之前**算好，讓存活下來的圈保住它真正的 stint 位置 |
+| `Compound` | 輪胎配方，one-hot 編碼 |
+| `TyreLife` | 輪胎的原始絕對圈齡（沿用輪胎時會跨 stint 累加） |
+| `TyreLifeNorm` | `TyreLife / max(車手 stint 內的 TyreLife)`——stint 內的相對位置，落在 (0, 1] |
+| `FreshTyre` | 新胎旗標 |
+| `FuelLoad` | `110 − LapNumber × 1.7` kg（已發表的燃油消耗模型；Cappello, 2025） |
+| `Humidity` | 天氣狀態——影響空氣密度（阻力），兩項研究都需要 |
+| `Rainfall` | 天氣狀態——影響地面抓地力，兩項研究都需要 |
 
-**Study-specific causal variables** (2 each, giving 11 features per study):
+**各研究專屬的因果變數**（各 2 個，所以每項研究共 11 個特徵）：
 
-| Study | Causal features |
+| 研究 | 因果特徵 |
 |---|---|
-| **wind** | `HeadWind = WindSpeed × cos(WindDirection°)`, `CrossWind = WindSpeed × sin(WindDirection°)` |
-| **temp** | `AirTemp`, `TrackTemp` (raw weather columns) |
+| **wind** | `HeadWind = WindSpeed × cos(WindDirection°)`、`CrossWind = WindSpeed × sin(WindDirection°)` |
+| **temp** | `AirTemp`、`TrackTemp`（原始天氣欄位） |
 
-The design principle: *anything in the baseline is a control; anything study-specific is the cause being claimed.* `AirTemp`/`TrackTemp` are deliberately excluded from the wind study (and vice versa) — including them would let the other mechanism's signal leak into the model whose causal claim is under test. An earlier `TyreLifeNorm × TrackTemp` interaction feature was removed for exactly this reason (it back-doored temperature into the wind model), and because tree ensembles learn such interactions implicitly from main effects.
+設計原則是：**在基線裡的都是控制變數，各研究專屬的才是被主張的成因。** `AirTemp`／`TrackTemp` 刻意排除在 wind 研究之外（反之亦然）——把它們放進來，等於讓另一個機制的訊號漏進正在受檢驗的那個因果主張裡。早期有一個 `TyreLifeNorm × TrackTemp` 的交互作用特徵，正是因為這個理由被移除（它從後門把溫度帶進了風的模型），而且樹系集本來就會從主效應隱式學到這類交互作用。
 
-**Target** (shared): `LapTimeDelta = LapTime − min(LapTime within driver-stint)`, in seconds. Each lap is measured against the best lap of its own stint, which normalizes away driver/car/track-evolution level differences and leaves the within-stint degradation signal.
+**預測目標**（共用）：`LapTimeDelta = LapTime − min(車手 stint 內的 LapTime)`，單位為秒。每一圈都拿自己所屬 stint 的最佳圈來比，這會把車手／賽車／賽道演進造成的水平差異正規化掉，留下 stint 內的衰退訊號。
 
-**Invalid-lap filter** (shared): drop pit-in/pit-out laps, non-green-flag laps (`TrackStatus ≠ '1'`), and the lap immediately following either — those laps reflect traffic, safety-car pace, or cold tyres, not the mechanisms under study. Stint-position features are computed on the *unfiltered* data first, so filtering never distorts a lap's recorded place in its stint.
+**無效圈過濾**（共用）：丟掉進站圈與出站圈、非全綠旗的圈（`TrackStatus ≠ '1'`），以及緊接在這兩者之後的那一圈——那些圈反映的是車流、安全車配速或冷胎，不是本研究要看的機制。stint 位置相關的特徵先在**未過濾**的資料上算好，所以過濾永遠不會扭曲某一圈在它 stint 裡的記錄位置。
 
-**Preprocessing pipeline** — both studies run the exact same fixed sequence (`BaseLapPreprocessor.run()`, a template method whose order subclasses cannot change):
+**前處理管線**——兩項研究跑的是一模一樣的固定順序（`BaseLapPreprocessor.run()`，一個子類別無法改變其順序的 template method）：
 
-1. Sort by `RaceYear → GPName → Driver → LapNumber`
-2. Engineer common features (`LapInStint`, `TyreLifeNorm`, `FuelLoad`) on the **unfiltered** data
-3. Apply the invalid-lap filter
-4. Engineer study-specific features (the causal axis — wind components or raw temperatures)
-5. Compute the target `LapTimeDelta`
-6. Build the feature matrix: select columns, one-hot encode `Compound`, align columns to the trained model's feature list at evaluation time
+1. 依 `RaceYear → GPName → Driver → LapNumber` 排序
+2. 在**未過濾**的資料上做共用特徵工程（`LapInStint`、`TyreLifeNorm`、`FuelLoad`）
+3. 套用無效圈過濾
+4. 做各研究專屬的特徵工程（因果軸——風的分量或原始溫度）
+5. 計算預測目標 `LapTimeDelta`
+6. 組出特徵矩陣：選欄位、對 `Compound` 做 one-hot、評估時把欄位對齊到訓練時的特徵清單
 
-A new study plugs in by declaring an `experiment_name` and its `feature_columns` — the base class self-registers it — so the symmetric structure is enforced by the architecture, not by convention.
+要接上一項新研究，只需要宣告 `experiment_name` 與它的 `feature_columns`——基底類別會自動註冊——所以這個對稱結構是由架構強制的，不是靠慣例維持的。
 
-## 4. Split discipline
+## 4. 切分紀律
 
-- **Train**: first 80% of 2022–2024, time-ordered (`RaceYear → GPName → Driver → LapNumber`)
-- **Validation** (within-era hold-out, used for model selection): last 20% of 2022–2024
-- **Test** (truly unseen): the full 2025 race(s)
-- Hyperparameter search uses `TimeSeriesSplit(n_splits=5)` *inside* the 80% training portion only — no fold ever trains on data from later than its own evaluation slice.
+- **訓練集**：2022–2024 依時序（`RaceYear → GPName → Driver → LapNumber`）取前 80%
+- **驗證集**（時代內的保留集，用於模型選擇）：2022–2024 的後 20%
+- **測試集**（真正沒見過）：2025 的整場賽事
+- 超參數搜尋**只在**那 80% 的訓練段內使用 `TimeSeriesSplit(n_splits=5)`——沒有任何一折會用到晚於自己評估區段的資料來訓練。
 
-The era boundary matters: 2022–2025 is one regulatory regime, so 2025 measures *within-era generalization* — the practically relevant question ("does last season's model work next season?") — rather than conflating model error with a rules change.
+時代邊界很重要：2022–2025 屬於同一套規則體制，所以 2025 量的是**時代內的泛化能力**——也就是實務上真正關心的問題（「上個賽季的模型明年還能用嗎？」）——而不是把模型誤差跟規則變動混在一起。
 
-**Year-on-year drift is reported as a finding, never patched by retraining.** The 2025 test residuals show a consistent median offset (~−0.17 s for the wind study, ~−0.37 s for temp): the models, trained on 2022–2024, systematically overestimate 2025 lap-time deltas, because within-stint spread narrowed between the training seasons and 2025 (median delta 0.86 s → 0.71 s at Azerbaijan, 0.82 s → 0.74 s at Singapore). Why it narrowed is not settled by this data — tyre construction, race interruptions and session-specific dynamics are all candidates — so the offset is measured rather than explained away. This is handled by an optional *post-hoc median-residual bias correction* (`ModelEvaluator.evaluate(..., bias_correct=True)`) that subtracts the median residual and reports both raw and corrected metrics. The 2025 data never enters training. The fitted RF offsets are: wind in-domain −0.17 s, wind cross-domain −0.18 s, temp in-domain −0.37 s, temp cross-domain −1.32 s — the last of these is itself diagnostic (see §6).
+**年度之間的漂移是當成發現來回報的，絕不用重新訓練把它蓋掉。** 2025 測試集的殘差呈現一致的中位數偏移（wind 約 −0.17 秒、temp 約 −0.37 秒）：以 2022–2024 訓練出來的模型，系統性地高估了 2025 的單圈時間差，因為 stint 內的離散程度在訓練賽季與 2025 之間收窄了（亞塞拜然的 delta 中位數 0.86 秒 → 0.71 秒，新加坡 0.82 秒 → 0.74 秒）。為什麼會收窄，這批資料無法定論——輪胎結構、比賽中斷、場次特有的動態都是候選——所以這個偏移是被量出來的，而不是被解釋掉的。處理方式是一個可選用的**事後殘差中位數偏差修正**（`ModelEvaluator.evaluate(..., bias_correct=True)`），它減掉殘差中位數，並且原始與修正後的指標都會報出來。2025 的資料從未進入訓練。RF 擬合出來的偏移量是：wind 同域 −0.17 秒、wind 跨域 −0.18 秒、temp 同域 −0.37 秒、temp 跨域 −1.32 秒——最後這一個本身就有診斷意義（見 §6）。
 
-## 5. Models & selection
+## 5. 模型與選擇
 
-Three regression models are trained per study — Decision Tree, Random Forest, XGBoost — each via an independent `GridSearchCV` (`TimeSeriesSplit(5)`, R² scoring), sharing `random_state=42` throughout:
+每項研究訓練三個迴歸模型——Decision Tree、Random Forest、XGBoost——各自跑一次獨立的 `GridSearchCV`（`TimeSeriesSplit(5)`，以 R² 評分），全程共用 `random_state=42`：
 
-| Model | Grid combinations | Wall-clock / study (8-core CPU) |
+| 模型 | 網格組合數 | 每項研究的實際耗時（8 核 CPU） |
 |---|---|---|
-| DT | 648 | ~30 min |
-| RF | 1,875 | ~26 h |
-| XGB | 2,160 | ~10–13 h |
+| DT | 648 | 約 30 分鐘 |
+| RF | 1,875 | 約 26 小時 |
+| XGB | 2,160 | 約 10 至 13 小時 |
 
-Full run (both studies, all models): **~75–80 h**.
+完整跑完（兩項研究、所有模型）：**約 75 至 80 小時**。
 
-The grids are designed so that a selected value is interpretable: **library defaults are reachable on every axis** (a "default wins" outcome is a finding, not a grid gap), and every axis carries **boundary safety margin** (e.g. `n_estimators` extends to 2000, well above the practical ~1000-tree plateau, so a boundary pick can be interrogated via `cv_results_` rather than silently accepted). Per-axis rationale is documented inline in `f1lab/models.py`.
+網格是刻意設計成「被選中的值本身有解讀價值」：**每個軸上函式庫的預設值都搆得到**（「預設值勝出」是一個發現，不是網格沒涵蓋到），而且每個軸都留有**邊界餘裕**（例如 `n_estimators` 一路延到 2000，遠高於實務上約 1000 棵就進入平台期的位置，所以邊界被選中時可以回頭用 `cv_results_` 追問，而不是默默接受）。逐軸的理由寫在 `f1lab/models.py` 的行內註解。
 
-**Decision Tree** (648 combinations):
+**Decision Tree**（648 種組合）：
 
 ```python
-"max_depth":          [None, 3, 5, 10, 20, 30]   # None and 30 at upper margin
-"min_samples_leaf":   [1, 5, 10, 30, 90, 150]    # 1 = sklearn default
-"min_samples_split":  [2, 10, 30, 50, 100, 200]  # 2 = sklearn default
-"max_features":       [None, "sqrt", 0.5]        # None = all features
+"max_depth":          [None, 3, 5, 10, 20, 30]   # None 與 30 落在上界餘裕
+"min_samples_leaf":   [1, 5, 10, 30, 90, 150]    # 1 = sklearn 預設
+"min_samples_split":  [2, 10, 30, 50, 100, 200]  # 2 = sklearn 預設
+"max_features":       [None, "sqrt", 0.5]        # None = 全部特徵
 ```
 
-**Random Forest** (1,875 combinations):
+**Random Forest**（1,875 種組合）：
 
 ```python
 "n_estimators":      [200, 500, 1000, 1500, 2000]
@@ -112,22 +112,22 @@ The grids are designed so that a selected value is interpretable: **library defa
 "max_features":      ["sqrt", 0.5, 1.0]
 ```
 
-**XGBoost** (2,160 combinations):
+**XGBoost**（2,160 種組合）：
 
 ```python
-"n_estimators":     [200, 500, 1000, 1500, 2000]   # matches RF
-"max_depth":        [3, 6, 10, 15]                 # 6 = XGBoost default
-"learning_rate":    [0.05, 0.1, 0.2, 0.3]          # 0.3 = XGBoost default
-"subsample":        [0.7, 0.85, 1.0]               # 1.0 = default
-"colsample_bytree": [0.7, 0.85, 1.0]               # 1.0 = default
-"min_child_weight": [1, 5, 10]                     # 1 = default
+"n_estimators":     [200, 500, 1000, 1500, 2000]   # 與 RF 對齊
+"max_depth":        [3, 6, 10, 15]                 # 6 = XGBoost 預設
+"learning_rate":    [0.05, 0.1, 0.2, 0.3]          # 0.3 = XGBoost 預設
+"subsample":        [0.7, 0.85, 1.0]               # 1.0 = 預設
+"colsample_bytree": [0.7, 0.85, 1.0]               # 1.0 = 預設
+"min_child_weight": [1, 5, 10]                     # 1 = 預設
 ```
 
-XGBoost's remaining regularization knobs (`reg_alpha`, `reg_lambda`, `gamma`) are deliberately excluded — they are fine-tuning axes that would push the grid past ~20,000 combinations for marginal insight. Note in the results below that neither winning XGB configuration pins a boundary on the axes that matter: both studies select `learning_rate=0.05` and shallow `max_depth=3`, i.e. the search had room and chose regularized settings.
+XGBoost 其餘的正則化旋鈕（`reg_alpha`、`reg_lambda`、`gamma`）刻意排除——它們屬於微調軸，放進來會讓網格衝破約 20,000 種組合，換到的洞見卻很有限。注意底下的結果：兩個勝出的 XGB 設定，在真正重要的軸上都沒有貼著邊界；兩項研究都選了 `learning_rate=0.05` 與很淺的 `max_depth=3`，也就是說搜尋空間還有餘裕，而它選擇了較保守的設定。
 
-**Hold-out comparison** (validation = last 20% of 2022–2024):
+**保留集比較**（驗證集 = 2022–2024 的後 20%）：
 
-| Study | Model | Hold-out R² | MAE | RMSE | Selected hyperparameters |
+| 研究 | 模型 | 保留集 R² | MAE | RMSE | 選中的超參數 |
 |---|---|---|---|---|---|
 | wind | DT | 0.663 | 0.614 | 0.982 | max_depth=10, max_features=sqrt, min_samples_leaf=1, min_samples_split=50 |
 | wind | RF | 0.734 | 0.562 | 0.871 | max_depth=None, max_features=0.5, min_samples_leaf=5, min_samples_split=2, n_estimators=1500 |
@@ -136,93 +136,93 @@ XGBoost's remaining regularization knobs (`reg_alpha`, `reg_lambda`, `gamma`) ar
 | temp | RF | **0.685** | 0.522 | 0.793 | max_depth=10, max_features=sqrt, min_samples_leaf=1, min_samples_split=2, n_estimators=500 |
 | temp | XGB | 0.668 | 0.542 | 0.813 | colsample_bytree=0.7, learning_rate=0.05, max_depth=3, min_child_weight=1, n_estimators=500, subsample=0.85 |
 
-**Why Random Forest stays the main model.** RF finishes within 0.07 of the best hold-out R² in both studies (wind: RF 0.734 vs XGB 0.799, gap 0.065; temp: RF wins outright at 0.685) — no decisive hold-out winner. RF then wins where it matters for this project: 2025-test generalization (temp study: RF test R² 0.420 vs XGB 0.254 in-domain; RF −6.080 vs XGB −17.420 cross-domain) and PDP stability for the mechanism-extraction step, where the ensemble's variance reduction produces smoother, more trustworthy response curves. The three-model comparison exists precisely so this choice is empirical rather than rhetorical.
+**為什麼主模型是 Random Forest。** RF 在兩項研究裡的保留集 R² 都落在最佳值的 0.07 以內（wind：RF 0.734 對 XGB 0.799，差距 0.065；temp：RF 以 0.685 直接勝出）——保留集上沒有決定性的贏家。接著 RF 在這個專案真正在意的地方勝出：2025 測試集的泛化能力（temp 研究：同域 RF 測試 R² 0.420 對 XGB 0.254；跨域 RF −6.080 對 XGB −17.420），以及機制抽取那一步的 PDP 穩定性——系集帶來的變異縮減會產生更平滑、更可信的反應曲線。三模型比較的存在，正是為了讓這個選擇是實測出來的，而不是講出來的。
 
-## 6. Results
+## 6. 結果
 
-Both studies are evaluated under four conditions: {in-domain, cross-domain} × {raw, bias-corrected}, for all three models. Cell format: **MAE / MSE / RMSE / R²** (MAE and RMSE in seconds).
+兩項研究都在四種條件下評估：{同域、跨域} × {原始、偏差修正後}，三個模型全跑。格子格式為 **MAE / MSE / RMSE / R²**（MAE 與 RMSE 單位為秒）。
 
-**Wind (Azerbaijan → Saudi Arabia):**
+**Wind（亞塞拜然 → 沙烏地阿拉伯）：**
 
-| Setting | DT | RF | XGB |
+| 設定 | DT | RF | XGB |
 |---|---|---|---|
-| Azerbaijan in-domain, raw | 0.526/0.505/0.711/−0.042 | 0.457/0.383/0.619/**0.209** | 0.463/0.377/0.614/0.221 |
-| Azerbaijan in-domain, bias | 0.516/0.506/0.711/−0.044 | 0.435/0.395/0.628/0.186 | 0.423/0.381/0.617/0.213 |
-| Saudi cross-domain, raw | 0.516/0.522/0.723/−0.017 | 0.460/0.430/0.656/**0.163** | 0.465/0.437/0.661/0.149 |
-| Saudi cross-domain, bias | 0.496/0.520/0.721/−0.013 | 0.435/0.432/0.657/0.159 | 0.440/0.436/0.660/0.151 |
+| 亞塞拜然同域，原始 | 0.526/0.505/0.711/−0.042 | 0.457/0.383/0.619/**0.209** | 0.463/0.377/0.614/0.221 |
+| 亞塞拜然同域，偏差修正 | 0.516/0.506/0.711/−0.044 | 0.435/0.395/0.628/0.186 | 0.423/0.381/0.617/0.213 |
+| 沙烏地跨域，原始 | 0.516/0.522/0.723/−0.017 | 0.460/0.430/0.656/**0.163** | 0.465/0.437/0.661/0.149 |
+| 沙烏地跨域，偏差修正 | 0.496/0.520/0.721/−0.013 | 0.435/0.432/0.657/0.159 | 0.440/0.436/0.660/0.151 |
 
-**Temp (Singapore → Las Vegas):**
+**Temp（新加坡 → Las Vegas）：**
 
-| Setting | DT | RF | XGB |
+| 設定 | DT | RF | XGB |
 |---|---|---|---|
-| Singapore in-domain, raw | 0.850/2.813/1.677/0.378 | 0.885/2.621/1.619/**0.420** | 1.281/3.375/1.837/0.254 |
-| Singapore in-domain, bias | 0.835/2.912/1.706/0.356 | 0.821/2.718/1.649/0.399 | 0.932/2.967/1.722/0.344 |
-| Las Vegas cross-domain, raw | 1.821/4.192/2.047/−8.244 | 1.516/3.211/1.792/**−6.080** | 2.346/8.353/2.890/−17.420 |
-| Las Vegas cross-domain, bias | 0.781/1.015/1.008/−1.239 | 0.817/1.123/1.060/−1.477 | 1.590/3.437/1.854/−6.580 |
+| 新加坡同域，原始 | 0.850/2.813/1.677/0.378 | 0.885/2.621/1.619/**0.420** | 1.281/3.375/1.837/0.254 |
+| 新加坡同域，偏差修正 | 0.835/2.912/1.706/0.356 | 0.821/2.718/1.649/0.399 | 0.932/2.967/1.722/0.344 |
+| Las Vegas 跨域，原始 | 1.821/4.192/2.047/−8.244 | 1.516/3.211/1.792/**−6.080** | 2.346/8.353/2.890/−17.420 |
+| Las Vegas 跨域，偏差修正 | 0.781/1.015/1.008/−1.239 | 0.817/1.123/1.060/−1.477 | 1.590/3.437/1.854/−6.580 |
 
-**The headline contrast (RF):**
+**主要對比（RF）：**
 
-- **Wind generalizes.** Cross-domain raw R² 0.163 sits close to the in-domain 0.209 (bias-corrected: 0.159 vs 0.186). A model trained only on Baku transfers to Jeddah with a modest, quantified degradation — the two circuits share a wind-physics regime, and the model's learned response carries over.
-- **Temp fails catastrophically out-of-distribution.** Cross-domain raw R² is **−6.080** — an order of magnitude worse than predicting the mean. Las Vegas track temperatures (~17 °C) sit far below Singapore's entire training range (27.6–37.4 °C); the model has never seen the cold regime and its extrapolation is not merely inaccurate but systematically wrong (the −1.32 s bias offset needed to partially rescue it is itself evidence of regime mismatch).
+- **風能泛化。** 跨域原始 R² 0.163 與同域的 0.209 相當接近（偏差修正後：0.159 對 0.186）。一個只在 Baku 訓練的模型能轉移到 Jeddah，退化幅度不大而且量得出來——兩條賽道共享同一套風的物理條件，模型學到的反應能帶過去。
+- **溫度在分佈外徹底失敗。** 跨域原始 R² 是 **−6.080**——比直接預測平均值還差一個數量級。Las Vegas 的賽道溫度（約 17 °C）遠低於新加坡整個訓練範圍（27.6–37.4 °C）；模型從沒見過低溫這個區間，它的外推不只是不準，而是系統性地錯（要把它部分救回來所需的 −1.32 秒偏移，本身就是區間錯配的證據）。
 
-This asymmetry — usable extrapolation when the physical regime matches, unusable output when it doesn't — is the finding the rest of the design exists to make credible: both studies use the same features-minus-cause baseline, same splits, same grids, same headline model, so the only degree of freedom left to explain the difference is the mechanism and where its training support ends.
+這個不對稱——物理區間相符時外推可用、不符時輸出不可用——就是其餘設計存在的目的所要支撐的發現：兩項研究用同一組「扣掉成因」的基線、同一套切分、同一批網格、同一個主模型，所以能解釋這個差異的自由度就只剩機制本身，以及它的訓練支撐區間止於何處。
 
-![Same framework, two verdicts — residual distributions on the 2025 cross-domain races](img/ood_contrast.png)
+![同一套框架，兩種結論——2025 跨域賽事的殘差分佈](img/ood_contrast.png)
 
-## 7. Mechanism extraction
+## 7. 機制抽取
 
-Prediction accuracy alone doesn't answer question 1 (§1). The per-unit effect is extracted from the trained RF via **partial dependence**: the PDP is the model's average response `f(feature) → LapTimeDelta`, marginalized over the training distribution of all other features. **ICE curves** (individual conditional expectation, subsampled to 200 lines with the PDP overlaid) act as the stability check — they verify the average curve reflects a consistent response across samples rather than being dragged by a few outlying stints. `scripts/mechanism.py` generates all 8 figures (PDP + ICE for each of the four causal features).
+光有預測準確度回答不了第 1 個問題（§1）。每單位的效應是從訓練好的 RF 以**部分依賴**抽出來的：PDP 是模型的平均反應 `f(特徵) → LapTimeDelta`，對其餘所有特徵的訓練分佈做邊際化。**ICE 曲線**（individual conditional expectation，抽樣成 200 條並疊上 PDP）是穩定性檢查——用來確認平均曲線反映的是跨樣本一致的反應，而不是被少數離群 stint 拖出來的形狀。`scripts/mechanism.py` 會產生全部 8 張圖（四個因果特徵各一張 PDP 與一張 ICE）。
 
-**Training support** (the feature range the model actually saw — this becomes load-bearing in §8):
+**訓練支撐區間**（模型實際看過的特徵範圍——這一節在 §8 會變成承重結構）：
 
-| Study | Feature | Range | Mean | Span |
+| 研究 | 特徵 | 範圍 | 平均 | 跨距 |
 |---|---|---|---|---|
 | Wind | HeadWind | [−2.24, +3.60] m/s | +0.18 | 5.84 |
 | Wind | CrossWind | [−2.74, +3.79] m/s | −0.08 | 6.53 |
 | Temp | AirTemp | [26.80, 31.20] °C | 29.74 | 4.40 |
 | Temp | TrackTemp | [27.60, 37.40] °C | 34.36 | 9.80 |
 
-**Extracted magnitudes** (read off the RF PDPs, valid within the support above): `TrackTemp` shows a slope of roughly **−0.06 s per °C** across its monotone region — within Singapore's observed window, hotter track surfaces correlate with *smaller* lap-time deltas, consistent with tyres operating closer to their working temperature window. `CrossWind` shows a near-linear increase of roughly **+0.03 s per m/s**. `HeadWind` is flat through the mid-range and steps up above ~+1.2 m/s before plateauing — the shape that drives the strategy scenario below. These are average marginal effects of a tree ensemble, not causal coefficients; the ICE overlays confirm the shapes are population-wide rather than artifacts of a few stints.
+**抽出來的量值**（由 RF 的 PDP 讀出，只在上述支撐區間內有效）：`TrackTemp` 在它單調的區段上斜率約為 **−0.06 秒每 °C**——在新加坡觀測到的窗口內，賽道表面越熱，單圈時間差反而**越小**，這與輪胎運作在更接近其工作溫度窗口的情況一致。`CrossWind` 呈現近乎線性的上升，約 **+0.03 秒每 m/s**。`HeadWind` 在中段是平的，超過約 +1.2 m/s 之後往上跳一階再進入平台——這個形狀正是底下策略情境的驅動力。這些是樹系集的平均邊際效應，不是因果係數；疊上去的 ICE 確認了這些形狀是整個母體的，而不是少數 stint 造成的假象。
 
 | ![PDP — TrackTemp](img/pdp_tracktemp.png) | ![PDP — HeadWind](img/pdp_headwind.png) |
 |---|---|
 
-## 8. Strategy application
+## 8. 策略應用
 
-To show the extracted response function doing real work, both studies feed the same downstream decision: an **undercut evaluation** (pit now to gain track position on a rival). The environmental correction per lap is
+為了讓抽出來的反應函式真的做點事，兩項研究餵給同一個下游決策：一次 **undercut 評估**（現在進站，以在賽道上超過對手）。每圈的環境修正量是
 
 ```
-Δ = f(current_value) − f(training_mean)
+Δ = f(當前值) − f(訓練平均)
 ```
 
-read off the precomputed PDP grid by linear interpolation (`UndercutScenario` in `f1lab/strategy.py`). The correction is applied **iff** `current_value` lies inside the training support `[feature.min(), feature.max()]`; outside it the input is OOD, the PDP is undefined, and the correction is *withheld* rather than silently extrapolated.
+由預先算好的 PDP 網格以線性內插讀出（`f1lab/strategy.py` 的 `UndercutScenario`）。這個修正量**只在** `current_value` 落在訓練支撐區間 `[feature.min(), feature.max()]` 之內才套用；落在外面時輸入就是 OOD，PDP 沒有定義，修正量會被**收回**，而不是默默外推。
 
-Both scenarios share identical strategy-desk parameters: `pit_loss = 20.0 s`, uncorrected `gap = 19.50 s`, our new-tyre out-lap `95.20 s`, rival's old-tyre in-lap `95.50 s`, 10 rival laps remaining. Net cost `= 20.0 + 95.20 − 95.50 = 19.70 s`; margin `= 19.50 − 19.70 = −0.20 s` → uncorrected decision: **CLOSE** (don't pit), in both scenarios. The environmental conditions, by contrast, are real measured 2025 values, not assumptions.
+兩個情境共用一模一樣的策略桌參數：`pit_loss = 20.0 秒`、未修正的 `gap = 19.50 秒`、我方新胎出站圈 `95.20 秒`、對手舊胎進站圈 `95.50 秒`、對手剩 10 圈。淨成本 `= 20.0 + 95.20 − 95.50 = 19.70 秒`；餘裕 `= 19.50 − 19.70 = −0.20 秒` → 未修正的決策在兩個情境都是 **CLOSE**（不要進站）。相對地，環境條件用的是 2025 年真實量測到的值，不是假設。
 
-| | Saudi Arabia 2025 (wind) | Las Vegas 2025 (temp) |
+| | 沙烏地阿拉伯 2025（風） | Las Vegas 2025（溫度） |
 |---|---|---|
-| Current condition | Measured **max** HeadWind **+1.38 m/s** (race mean −0.31 sits in the flat PDP region; an undercut is a single-lap decision, so the at-that-moment value applies) | Measured mean TrackTemp **17.27 °C** |
-| Training support | [−2.24, +3.60] m/s → **in-support** | [27.60, 37.40] °C → **OOD** |
-| PDP read | f(+0.18) = +1.108 s, f(+1.38) = +1.147 s | undefined below 27.6 °C |
-| Δ per lap | **+0.039 s** | **withheld** |
-| Over 10 laps | +0.389 s → corrected gap **19.89 s** | — |
-| Corrected decision | 19.70 < 19.89 → **OPEN** — the decision flips CLOSE → OPEN on real measured wind | **cannot be evaluated** (corroborated by the cross-domain R² of −6.080) |
+| 當前條件 | 實測**最大** HeadWind **+1.38 m/s**（全場平均 −0.31 落在 PDP 的平坦區；undercut 是單圈決策，所以適用當下那個值） | 實測平均 TrackTemp **17.27 °C** |
+| 訓練支撐區間 | [−2.24, +3.60] m/s → **在區間內** | [27.60, 37.40] °C → **OOD** |
+| PDP 讀值 | f(+0.18) = +1.108 秒、f(+1.38) = +1.147 秒 | 27.6 °C 以下沒有定義 |
+| 每圈 Δ | **+0.039 秒** | **收回** |
+| 10 圈累計 | +0.389 秒 → 修正後 gap **19.89 秒** | — |
+| 修正後決策 | 19.70 < 19.89 → **OPEN**——決策在真實量測到的風下從 CLOSE 翻成 OPEN | **無法評估**（跨域 R² −6.080 佐證了這一點） |
 
-The asymmetry between the two columns is *only* the in-support/OOD verdict — same class, same parameters, same arithmetic. And the guard is precise about what it refuses: `net`, `gap`, and the uncorrected decision are always computed (they are arithmetic on strategy parameters, not model outputs); only the model-dependent correction term and corrected gap are withheld. This "knowing when not to predict" behaviour is a designed feature, not a failure mode: a black-box regressor would have emitted a confidently wrong Δ at 17 °C, and §6 shows empirically (R² −6.080) exactly how wrong. The applicability test is deliberately simple — is the current value within the observed training range? — so it is auditable by a human strategist in real time.
+兩欄之間的不對稱**只有**「在區間內／OOD」這個判定——同一個類別、同一組參數、同一套算術。而且這道守門對於自己拒絕什麼很精確：`net`、`gap` 與未修正的決策永遠都會算（它們是策略參數上的算術，不是模型輸出）；被收回的只有依賴模型的修正項與修正後的 gap。這種「知道什麼時候不該預測」的行為是設計出來的功能，不是故障模式：一個黑盒迴歸器在 17 °C 會很有自信地吐出一個錯的 Δ，而 §6 用實測（R² −6.080）說明了那會錯得多離譜。這個適用性判斷刻意寫得很簡單——當前值是否落在觀測到的訓練範圍內——所以真人策略員可以即時查核它。
 
-## 9. Limitations
+## 9. 限制
 
-Stated plainly, because the validity-boundary question (§1) cuts both ways:
+這裡講得直白，因為有效邊界那個問題（§1）是雙向的：
 
-- **PDP assumes feature independence.** Partial dependence marginalizes other features at their observed joint values; correlated features bias the curve. The extracted magnitudes are average marginal effects of a tree ensemble, not causal coefficients.
-- **`FuelLoad` is a deterministic function of `LapNumber`** (`110 − LapNumber × 1.7`) — perfect collinearity by construction. Their feature importances must be interpreted jointly; the model cannot separate fuel burn from everything else that varies monotonically with race progression.
-- **Mechanism isolation is implemented by variable omission, not statistical control.** The wind model simply never sees temperature (and vice versa), so any correlation between the omitted mechanism and the included one becomes omitted-variable bias in the learned response.
-- **`WindDirection` is a raw compass bearing**, not rotated to the track heading, so `HeadWind`/`CrossWind` are circuit-relative only in the sense that each circuit has a fixed layout. This is precisely why the wind cross-domain test is restricted to a physics-compatible circuit pair rather than an arbitrary one.
-- **Cross-domain pairs carry track-geometry confounders.** Jeddah is not Baku and Las Vegas is not Singapore; layout, surface, and downforce-level differences ride along with the environmental contrast. The temp pair's OOD verdict is robust to this (the temperature gap dominates), but cross-domain deltas should not be over-read.
-- **Strategy-desk parameters are illustrative.** Pit loss, gap, out-lap and in-lap times are typical street-circuit magnitudes chosen for the demonstration — they are not telemetry-measurable quantities. Only the environmental inputs are real 2025 measurements.
-- **Single-circuit training per study.** Each model learns one circuit's expression of its mechanism; the Saudi transfer shows this can generalize, but one successful transfer is evidence, not proof of general portability.
-- **PDP uncertainty grows in sparse-sample regions.** Near the edges of the training support the curve rests on few laps; no confidence intervals are reported, so edge-of-support readings are directional rather than precise.
+- **PDP 假設特徵獨立。** 部分依賴是在其餘特徵的觀測聯合值上做邊際化；特徵之間相關就會讓曲線有偏。抽出來的量值是樹系集的平均邊際效應，不是因果係數。
+- **`FuelLoad` 是 `LapNumber` 的確定性函數**（`110 − LapNumber × 1.7`）——在建構上就完全共線。兩者的特徵重要度必須合在一起解讀；模型無法把燃油消耗跟其他所有隨比賽進程單調變化的東西分開。
+- **機制隔離是用變數省略實作的，不是統計控制。** 風的模型單純就是看不到溫度（反之亦然），所以被省略的機制與被納入的機制之間只要有相關，就會在學到的反應裡變成遺漏變數偏誤。
+- **`WindDirection` 是原始的羅盤方位角**，沒有旋轉到賽道朝向，所以 `HeadWind`／`CrossWind` 只在「每條賽道有固定佈局」這個意義下是相對於賽道的。這正是風的跨域測試只挑物理條件相容的賽道配對、而不是隨便挑一條的原因。
+- **跨域配對帶著賽道幾何的混淆因子。** Jeddah 不是 Baku、Las Vegas 也不是新加坡；佈局、路面與下壓力等級的差異會跟著環境對比一起進來。temp 那一組的 OOD 判定對此是穩健的（溫度差距佔絕對主導），但跨域的差值不應該過度解讀。
+- **策略桌的參數是示意用的。** 進站損失、gap、出站圈與進站圈時間是為了示範而挑的街道賽道典型量級——它們不是遙測量得到的量。只有環境輸入是 2025 年的真實量測值。
+- **每項研究只在單一賽道上訓練。** 每個模型學到的是一條賽道上該機制的表現形式；沙烏地那次轉移顯示這是可以泛化的，但一次成功的轉移是證據，不是通用可攜性的證明。
+- **PDP 的不確定性在樣本稀疏處會變大。** 靠近訓練支撐區間邊緣時，曲線是靠很少幾圈撐起來的；本文沒有報告信賴區間，所以邊緣附近的讀值只有方向性，不夠精確。
 
-## Reproducing these results
+## 重現這些結果
 
-Everything above regenerates from source with one command — `python main.py` runs the full 32-command sequence: 6 trainings (3 models × 2 studies) → 24 evaluations (3 models × 4 conditions × 2 studies) → `scripts/summarize.py` (collates logs into `summary/metrics.csv`, 24 rows, and `summary/best_params.csv`, 6 rows) → `scripts/mechanism.py` (8 PDP/ICE figures + both scenario tables). Budget ~75–80 h on an 8-core CPU; everything is seeded (`random_state=42`) and deterministic. For a fast integrity check first: `python -m pytest tests/ -q` (16 tests, synthetic fixtures, no race data needed) and `python scripts/train.py --experiment wind --model all --quick --no-plots` (~15 s smoke run on tiny grids, incapable of overwriting saved models). Data acquisition and per-step commands are in the [README](../README.md).
+上面每一項都能由原始碼以一道指令重新產生——`python main.py` 會跑完整的 32 道指令序列：6 次訓練（3 模型 × 2 研究）→ 24 次評估（3 模型 × 4 條件 × 2 研究）→ `scripts/summarize.py`（把 log 彙整成 `summary/metrics.csv` 24 列與 `summary/best_params.csv` 6 列）→ `scripts/mechanism.py`（8 張 PDP/ICE 圖 + 兩張情境表）。在 8 核 CPU 上預算約 75 至 80 小時；全程有設種子（`random_state=42`）且為確定性。想先做快速健全檢查：`python -m pytest tests/ -q`（17 個測試，合成 fixture，不需要賽事資料）以及 `python scripts/train.py --experiment wind --model all --quick --no-plots`（約 15 秒的冒煙測試，跑在極小網格上，不可能覆寫已存的模型）。資料取得與逐步指令在 [README](../README.md)。

@@ -1,20 +1,17 @@
-"""Strategy-application layer for the PDP-derived correction term.
+"""由 PDP 導出之修正項的策略應用層。
 
-A trained study model (wind or temp) yields a response function via PDP. The
-per-lap correction term is
+訓練好的研究模型（wind 或 temp）透過 PDP 得到一條反應函式。每圈的修正項是
 
-    Δ = f(current_value) − f(training_mean)
+    Δ = f(當前值) − f(訓練平均)
 
-applied to an undercut decision **iff** the current condition lies inside the
-model's training support (observed [min, max] of the feature). Outside that
-support the condition is out-of-distribution (OOD): the RF's trees never split
-there, so the PDP is undefined and the correction is *withheld* — the model
-refuses to predict rather than silently extrapolating.
+而這個修正項「只在」當前條件落在模型的訓練支撐區間（該特徵觀測到的
+[min, max]）之內，才會套用到 undercut 決策上。落在支撐區間之外時，
+該條件就是分佈外（OOD）：RF 的樹從沒在那裡分裂過，所以 PDP 沒有定義，
+修正項會被「收回」——模型選擇拒絕預測，而不是默默外推。
 
-The two studies share an identical `UndercutScenario` and identical fixed
-parameters; they differ only in whether the queried condition is in-support
-(wind/Saudi → correction applies, decision may flip) or OOD (temp/Las Vegas →
-correction withheld, decision cannot be evaluated). That symmetry is the point.
+兩項研究共用同一個 `UndercutScenario` 與同一組固定參數；它們唯一的差別
+在於被查詢的條件是落在支撐區間內（wind／沙烏地 → 修正項生效，決策可能翻轉）
+還是 OOD（temp／Las Vegas → 修正項收回，決策無法評估）。這個對稱正是重點。
 """
 from __future__ import annotations
 
@@ -28,13 +25,13 @@ from sklearn.inspection import partial_dependence
 
 @dataclass
 class ScenarioResult:
-    """Outcome of one undercut scenario evaluation.
+    """一次 undercut 情境評估的結果。
 
-    `applicable` is False when the queried condition is OOD; the corrected-*
-    fields are then None (decision cannot be evaluated).
+    被查詢的條件為 OOD 時 `applicable` 為 False，此時 corrected-* 這幾個欄位
+    都是 None（決策無法評估）。
     """
     feature: str
-    # --- fixed undercut parameters (identical across studies) ---
+    # --- 固定的 undercut 參數（兩項研究完全相同）---
     pit_loss: float
     gap: float
     ours_new_outlap: float
@@ -43,7 +40,7 @@ class ScenarioResult:
     net: float
     margin_uncorrected: float
     decision_uncorrected: str            # "OPEN" | "CLOSE"
-    # --- correction / applicability ---
+    # --- 修正項與適用性 ---
     training_mean: float
     current_value: float
     support_lo: float
@@ -97,11 +94,11 @@ class ScenarioResult:
 
 
 class UndercutScenario:
-    """A pit-stop undercut decision augmented by a PDP-derived correction term.
+    """一個進站 undercut 決策，外加一項由 PDP 導出的修正。
 
-    The PDP grid is precomputed once from the study's training feature matrix;
-    `evaluate(current_value)` decides applicability by the observed training
-    support and (when in-support) reads the correction off the PDP.
+    PDP 網格由該研究的訓練特徵矩陣預先算好一次；
+    `evaluate(current_value)` 依觀測到的訓練支撐區間判定適用與否，
+    在區間內時才從 PDP 讀出修正量。
     """
 
     def __init__(
@@ -126,7 +123,7 @@ class UndercutScenario:
         self.rival_old_inlap = rival_old_inlap
         self.n_remaining = n_remaining
 
-        # PDP curve (for reading off correction values)
+        # PDP 曲線（用來讀出修正量）
         result = partial_dependence(model, x, features=[feature], grid_resolution=grid_resolution)
         self._grid = np.asarray(result["grid_values"][0])
         self._pdp = np.asarray(result["average"][0])
@@ -145,13 +142,11 @@ class UndercutScenario:
         rival_old_inlap: float,
         n_remaining: int,
     ) -> UndercutScenario:
-        """Rebuild a scenario from a `to_cache()` export, without the model.
+        """不帶模型，從 `to_cache()` 匯出的內容重建一個情境。
 
-        The model is touched exactly once, in `__init__`, to compute the PDP
-        grid; `evaluate()` afterwards reads only that grid, the support and the
-        training mean. A deployment that needs nothing but the correction can
-        therefore ship a few hundred floats instead of the fitted forest and its
-        training data.
+        模型只在 `__init__` 被碰過一次，用來算出 PDP 網格；之後 `evaluate()`
+        只讀那個網格、支撐區間與訓練平均。因此只需要修正量的部署場合，
+        可以只帶幾百個浮點數，而不必帶著擬合好的森林與它的訓練資料。
         """
         obj = cls.__new__(cls)
         obj.model = None
@@ -169,10 +164,10 @@ class UndercutScenario:
         return obj
 
     def to_cache(self) -> dict:
-        """The model-derived values `evaluate()` reads, as plain JSON-able types.
+        """`evaluate()` 會讀到的那些模型衍生值，以可直接 JSON 化的型別表示。
 
-        Inverse of `from_cache()`; the fixed strategy parameters are deliberately
-        left out so the consumer supplies its own.
+        `from_cache()` 的反向操作；固定的策略參數刻意不放進來，
+        由使用端自己提供。
         """
         lo, hi = self.support
         return {
@@ -184,8 +179,8 @@ class UndercutScenario:
 
     @property
     def support(self) -> tuple[float, float]:
-        """Training support = observed [min, max] of the feature (the range the
-        RF actually saw and split on)."""
+        """訓練支撐區間 = 該特徵觀測到的 [min, max]
+        （也就是 RF 真正看過、也真的在上面分裂過的範圍）。"""
         return self._support
 
     @property
@@ -193,7 +188,7 @@ class UndercutScenario:
         return self._training_mean
 
     def _pdp_at(self, value: float) -> float:
-        """PDP value at an arbitrary point via linear interpolation on the grid."""
+        """在網格上以線性內插取得任意一點的 PDP 值。"""
         return float(np.interp(value, self._grid, self._pdp))
 
     def evaluate(self, current_value: float) -> ScenarioResult:

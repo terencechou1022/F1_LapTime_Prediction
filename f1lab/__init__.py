@@ -1,12 +1,12 @@
-"""f1lab — Object-oriented toolkit for F1 lap-performance regression.
+"""f1lab — F1 單圈表現迴歸的物件導向工具組。
 
-Public API:
-    BaseLapPreprocessor, WindPreprocessor, TempPreprocessor
-    ModelTrainer, ModelEvaluator
+公開 API：
+    BaseLapPreprocessor、WindPreprocessor、TempPreprocessor
+    ModelTrainer、ModelEvaluator
     Visualizer
-    FastF1Downloader, RaceDataMerger
+    FastF1Downloader、RaceDataMerger
 
-Usage:
+使用方式：
     from f1lab import ModelTrainer, WindPreprocessor
 
     preprocessor = WindPreprocessor.from_excel("data/merged/2022-2024_Azerbaijan_Grand_Prix.xlsx")

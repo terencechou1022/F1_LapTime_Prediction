@@ -1,15 +1,15 @@
-"""Lap-data preprocessing pipeline (Template Method pattern).
+"""圈速資料的前處理管線（Template Method 模式）。
 
-`BaseLapPreprocessor` defines the shared sequence:
-    sort → engineer common features → filter invalid laps
-        → engineer experiment-specific features → compute target
-        → encode compound → align feature matrix
+`BaseLapPreprocessor` 定義共用的順序：
+    排序 → 共用特徵工程 → 過濾無效圈
+        → 各實驗專屬的特徵工程 → 計算目標
+        → 編碼 compound → 對齊特徵矩陣
 
-Stint-position features (LapInStint, TyreLifeNorm) are computed BEFORE
-the invalid-lap filter, so their values reflect each lap's true position
-in the original stint regardless of how many SC/pit laps were dropped.
+stint 位置相關的特徵（LapInStint、TyreLifeNorm）在無效圈過濾「之前」就算好，
+所以它們的值反映的是每一圈在原始 stint 裡的真實位置，
+與該 stint 被丟掉多少安全車圈或進站圈無關。
 
-Subclasses override `feature_columns` and (optionally) `_engineer_specific_features`.
+子類別覆寫 `feature_columns`，並可選擇覆寫 `_engineer_specific_features`。
 """
 from __future__ import annotations
 
@@ -22,10 +22,10 @@ import pandas as pd
 
 
 class BaseLapPreprocessor(ABC):
-    """Abstract base preprocessor for race lap regression.
+    """賽事圈速迴歸的抽象前處理基底類別。
 
-    Subclasses self-register via the `experiment_name` class attribute and
-    can be looked up by `BaseLapPreprocessor.get(name)`.
+    子類別透過 `experiment_name` 類別屬性自動註冊，
+    之後可用 `BaseLapPreprocessor.get(name)` 取回。
     """
 
     GROUP_KEYS: ClassVar[tuple[str, ...]] = ("RaceYear", "GPName", "Driver", "Stint")
@@ -33,18 +33,17 @@ class BaseLapPreprocessor(ABC):
     SORT_KEYS: ClassVar[tuple[str, ...]] = ("RaceYear", "GPName", "Driver", "LapNumber")
     TARGET_COLUMN: ClassVar[str] = "LapTimeDelta"
 
-    # Baseline features shared by every study. Subclasses extend this list with
-    # study-specific explanatory variables (e.g. AirTemp/TrackTemp for the temp
-    # study, HeadWind/CrossWind for the wind study). Anything in this list is a
-    # control variable — not the phenomenon under investigation.
+    # 每項研究共用的基線特徵。子類別在這份清單之外補上各自的解釋變數
+    # （例如 temp 研究的 AirTemp/TrackTemp、wind 研究的 HeadWind/CrossWind）。
+    # 在這份清單裡的一律是控制變數，不是被檢驗的那個現象。
     #
-    # Tyre-related axes: TyreLife (raw absolute use), TyreLifeNorm (stint-relative
-    # position 0~1), LapInStint (in-stint count). The three carry complementary
-    # information: raw age captures absolute wear (and carries across stints for
-    # inherited tyres), the normalised forms capture within-stint progression.
-    # The earlier `TyreLifeTemp = TyreLifeNorm × TrackTemp` interaction was
-    # removed: tree-based models can learn the interaction implicitly from main
-    # effects, and including it would back-door TrackTemp into the wind study.
+    # 輪胎相關的三個軸：TyreLife(原始絕對使用量)、TyreLifeNorm(stint 內的
+    # 相對位置 0~1)、LapInStint(stint 內的計數)。三者帶的是互補資訊：
+    # 原始圈齡捕捉絕對磨耗(沿用輪胎時會跨 stint 累加),正規化的兩個
+    # 則捕捉 stint 內的進程。
+    # 早期的 `TyreLifeTemp = TyreLifeNorm × TrackTemp` 交互作用已移除：
+    # 樹模型可以從主效應隱式學到這個交互作用，而把它放進來會從後門
+    # 讓 TrackTemp 進到 wind 研究裡。
     BASE_FEATURES: ClassVar[list[str]] = [
         "LapNumber",
         "LapInStint",
@@ -57,11 +56,11 @@ class BaseLapPreprocessor(ABC):
         "Rainfall",
     ]
 
-    # Fuel mass burns at ~1.7 kg/lap from a 110 kg start (Cappello, 2025)
+    # 油量從 110 kg 起跑，以每圈約 1.7 kg 消耗(Cappello, 2025)
     FUEL_START_KG: ClassVar[float] = 110.0
     FUEL_BURN_KG_PER_LAP: ClassVar[float] = 1.7
 
-    # Subclass registry (auto-populated via __init_subclass__).
+    # 子類別註冊表(由 __init_subclass__ 自動填入)。
     experiment_name: ClassVar[str] = ""
     _registry: ClassVar[dict[str, type["BaseLapPreprocessor"]]] = {}
 
@@ -74,7 +73,7 @@ class BaseLapPreprocessor(ABC):
         self.df: pd.DataFrame = df.copy()
         self.features: list[str] | None = list(features) if features is not None else None
 
-    # ---- factories --------------------------------------------------------
+    # ---- 工廠方法 ----------------------------------------------------------
 
     @classmethod
     def from_excel(cls, path: str | Path, features: Sequence[str] | None = None) -> "BaseLapPreprocessor":
@@ -82,7 +81,7 @@ class BaseLapPreprocessor(ABC):
 
     @classmethod
     def get(cls, name: str) -> type["BaseLapPreprocessor"]:
-        """Look up a registered preprocessor subclass by experiment name."""
+        """以實驗名稱查出已註冊的前處理器子類別。"""
         try:
             return cls._registry[name]
         except KeyError as exc:
@@ -91,16 +90,15 @@ class BaseLapPreprocessor(ABC):
                 f"Unknown experiment {name!r}. Valid options: {valid}"
             ) from exc
 
-    # ---- public pipeline (template method) --------------------------------
+    # ---- 公開管線(template method)-----------------------------------------
 
     def run(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-        """Run the full preprocessing pipeline and return (df, X, y).
+        """跑完整條前處理管線，回傳 (df, X, y)。
 
-        Order rationale: stint-position features (LapInStint, TyreLifeNorm) are
-        computed BEFORE invalid-lap filtering so that they reflect the lap's
-        true position in the original stint, not the post-filter visible
-        position. This keeps `LapInStint` consistent across runs regardless
-        of how many SC/pit laps were removed in a given stint.
+        順序的理由：stint 位置相關的特徵(LapInStint、TyreLifeNorm)在無效圈
+        過濾「之前」就算好，這樣它們反映的是該圈在原始 stint 裡的真實位置，
+        而不是過濾後看得到的位置。如此一來，不論某個 stint 被移掉多少
+        安全車圈或進站圈，`LapInStint` 在不同次執行之間都保持一致。
         """
         self._sort()
         self._engineer_common_features()
@@ -112,26 +110,25 @@ class BaseLapPreprocessor(ABC):
         y = self.df[self.TARGET_COLUMN]
         return self.df, x, y
 
-    # ---- abstract / hook methods ------------------------------------------
+    # ---- 抽象方法與 hook ---------------------------------------------------
 
     @property
     @abstractmethod
     def feature_columns(self) -> list[str]:
-        """Columns selected from the dataframe before one-hot encoding."""
+        """one-hot 編碼之前，要從 dataframe 選出來的欄位。"""
 
     def _engineer_specific_features(self) -> None:
-        """Override to add experiment-specific features (no-op by default)."""
+        """覆寫它來加入各實驗專屬的特徵(預設不做任何事)。"""
 
-    # ---- shared steps -----------------------------------------------------
+    # ---- 共用步驟 ----------------------------------------------------------
 
     def _sort(self) -> None:
         self.df = self.df.sort_values(list(self.SORT_KEYS))
 
     def _filter_invalid_laps(self) -> None:
-        # Scoped to this method to avoid the global side effect of
-        # `pd.set_option` at module import. Both `.replace("", np.nan)` and
-        # `.fillna(False)` below would otherwise emit a FutureWarning about
-        # silent downcasting of object dtypes.
+        # 限定在這個方法內，避免在模組匯入時呼叫 `pd.set_option` 造成全域副作用。
+        # 否則底下的 `.replace("", np.nan)` 與 `.fillna(False)` 都會噴出
+        # 關於 object dtype 被靜默降型的 FutureWarning。
         with pd.option_context("future.no_silent_downcasting", True):
             df = self.df
             df[["PitInTime", "PitOutTime"]] = df[["PitInTime", "PitOutTime"]].replace("", np.nan)
@@ -152,7 +149,7 @@ class BaseLapPreprocessor(ABC):
 
         df["LapInStint"] = groups.cumcount() + 1
         df["TyreLifeNorm"] = df["TyreLife"] / groups["TyreLife"].transform("max")
-        df = df[df["TyreLifeNorm"] > 0].copy()  # explicit copy so subsequent assignment doesn't trigger SettingWithCopyWarning
+        df = df[df["TyreLifeNorm"] > 0].copy()  # 明確複製一份，後續賦值才不會觸發 SettingWithCopyWarning
         df["FuelLoad"] = self.FUEL_START_KG - (df["LapNumber"] * self.FUEL_BURN_KG_PER_LAP)
         self.df = df
 
