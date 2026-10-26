@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -206,3 +207,79 @@ class Visualizer:
         ax.grid(True, alpha=0.3)
         ax.legend(loc="best")
         _emit(fig, save_path)
+
+    @staticmethod
+    def monte_carlo_distribution(
+        result: Any,
+        title: str | None = None,
+        save_path: str | Path | None = None,
+    ) -> None:
+        """繪製蒙特卡羅模擬之超車餘裕（Margin）機率分佈對比圖。
+
+        若環境條件在訓練支撐區間內，同時疊加「未修正」與「修正後」兩條分佈曲線，
+        並標出 margin = 0 的勝負分界線。
+        """
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # 未修正情境分佈
+        sns.histplot(
+            result.margins_uncorrected,
+            kde=True,
+            stat="density",
+            color="slategray",
+            alpha=0.35,
+            label=f"Base (Uncorrected) — Win Rate: {result.success_prob_uncorrected * 100:.1f}%",
+            ax=ax,
+        )
+        ax.axvline(
+            result.mean_margin_uncorrected,
+            color="slategray",
+            linestyle=":",
+            linewidth=1.5,
+            label=f"Base Mean ({result.mean_margin_uncorrected:+.2f} s)",
+        )
+
+        # 修正後情境分佈（若可用）
+        if result.applicable and result.margins_corrected is not None:
+            sns.histplot(
+                result.margins_corrected,
+                kde=True,
+                stat="density",
+                color="forestgreen",
+                alpha=0.45,
+                label=f"Corrected (PDP Adjustment) — Win Rate: {result.success_prob_corrected * 100:.1f}%",
+                ax=ax,
+            )
+            ax.axvline(
+                result.mean_margin_corrected,
+                color="forestgreen",
+                linestyle=":",
+                linewidth=1.8,
+                label=f"Corrected Mean ({result.mean_margin_corrected:+.2f} s)",
+            )
+
+        # 0 軸臨界線 (margin > 0 為 Undercut 成功)
+        ax.axvline(0, color="crimson", linestyle="--", linewidth=2.0, label="Breakeven (Margin = 0)")
+
+        # 標註成功區域
+        ylim = ax.get_ylim()
+        xlim = ax.get_xlim()
+        ax.axvspan(0, max(xlim[1], 3.0), color="green", alpha=0.06)
+
+        default_title = (
+            f"Monte Carlo Undercut Simulation — {result.feature} (N={result.config.n_simulations:,})\n"
+            f"Win Rate: {result.success_prob_uncorrected * 100:.1f}%"
+        )
+        if result.applicable and result.success_prob_corrected is not None:
+            diff = (result.success_prob_corrected - result.success_prob_uncorrected) * 100
+            default_title += f" → {result.success_prob_corrected * 100:.1f}% ({diff:+.1f}%)"
+        else:
+            default_title += " [OOD Withheld]"
+
+        ax.set_title(title or default_title, fontsize=12, fontweight="bold")
+        ax.set_xlabel("Undercut Margin (s)  [ > 0: Undercut Successful (OPEN) ]")
+        ax.set_ylabel("Probability Density")
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc="upper left", framealpha=0.9)
+        _emit(fig, save_path)
+

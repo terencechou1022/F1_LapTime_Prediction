@@ -19,7 +19,13 @@ from f1lab.data import FastF1Downloader, RaceDataMerger
 from f1lab.experiments import TempPreprocessor, WindPreprocessor, get_preprocessor
 from f1lab.modeling import ModelEvaluator, ModelTrainer
 from f1lab.preprocessing import BaseLapPreprocessor
-from f1lab.strategy import ScenarioResult, UndercutScenario
+from f1lab.strategy import (
+    MonteCarloConfig,
+    MonteCarloResult,
+    MonteCarloUndercut,
+    ScenarioResult,
+    UndercutScenario,
+)
 from f1lab.visualization import Visualizer
 
 __all__ = [
@@ -32,6 +38,9 @@ __all__ = [
     "Visualizer",
     "UndercutScenario",
     "ScenarioResult",
+    "MonteCarloConfig",
+    "MonteCarloResult",
+    "MonteCarloUndercut",
     "FastF1Downloader",
     "RaceDataMerger",
 ]

@@ -45,18 +45,19 @@ pip install -e .[dev]              # 可編輯安裝 + pytest
 一分鐘內證明管線能跑——測試不需要賽事資料，也不需要網路：
 
 ```bash
-python -m pytest tests/ -q                                        # 17 個測試，約 2 秒
+python -m pytest tests/ -q                                        # 22 個測試，約 2 秒
 python scripts/train.py --experiment wind --model all --quick --no-plots   # 真實管線，極小網格，約 15 秒
 ```
 
-合併後的賽事資料（`data/merged/`，約 2 MB）與主要結果（`summary/*.csv`）都隨 repo 一起版控。預訓練模型（54 MB，六個 `.joblib`）掛在 GitHub Release，放進 `models/` 之後，評估與機制抽取這兩步幾分鐘就能跑完：
+合併後的賽事資料（`data/merged/`，約 2 MB）與主要結果（`summary/*.csv`）都隨 repo 一起版控。預訓練模型（54 MB，六個 `.joblib`）掛在 GitHub Release，放進 `models/` 之後，評估、機制抽取與蒙特卡羅模擬幾分鐘就能跑完：
 
 ```bash
 python scripts/evaluate.py --experiment temp-cross-domain   # 那個 −6.08 的結果，三個模型都跑
 python scripts/mechanism.py                                 # 8 張 PDP/ICE 圖 + 兩組 undercut 情境
+python scripts/monte_carlo.py                               # 10,000 次蒙特卡羅不確定性抽樣 + 勝率分佈圖
 ```
 
-從零完整重現（下載 → 合併 → 6 次網格搜尋訓練 → 24 次評估 → 彙整 → 機制抽取）是一道指令——`python main.py`（`--dry-run` 可預覽那 32 個步驟）——在 8 核 CPU 上約需 **75 至 80 小時**；逐步指令見下。
+從零完整重現（下載 → 合併 → 6 次網格搜尋訓練 → 24 次評估 → 彙整 → 機制抽取 → 蒙特卡羅模擬）是一道指令——`python main.py`（`--dry-run` 可預覽那 33 個步驟）——在 8 核 CPU 上約需 **75 至 80 小時**；逐步指令見下。
 
 ## 管線
 
@@ -89,6 +90,9 @@ python scripts/summarize.py
 
 # 6. PDP/ICE 圖 + 兩組對稱的 undercut 情境表
 python scripts/mechanism.py
+
+# 7. 蒙特卡羅模擬（換胎/配速/風速不確定性抽樣與勝率分佈圖）
+python scripts/monte_carlo.py
 ```
 
 `train.py` 與 `evaluate.py` 都接受 `--no-plots`（無視窗）或 `--save-plots-dir DIR`；完整跑完會把 **234 張診斷 PNG**（預測對實際、殘差分佈／對預測值／對特徵、特徵重要度）寫進 `plots/`。

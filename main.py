@@ -57,6 +57,7 @@ def build_steps() -> list[tuple[str, list[str], str]]:
 
     steps.append(("summarize", ["summarize.py"], "summarize.log"))
     steps.append(("mechanism (PDP/ICE + undercut scenarios)", ["mechanism.py"], "mechanism.log"))
+    steps.append(("monte carlo (probabilistic undercut simulation)", ["monte_carlo.py"], "monte_carlo.log"))
     return steps
 
 
